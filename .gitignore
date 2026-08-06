@@ -1,0 +1,16 @@
+# IntelliJ
+.idea/
+
+# Java / Maven
+testverse-backend/target/
+
+# React / Node
+testverse-frontend/node_modules/
+testverse-frontend/dist/
+
+# Environment files
+.env
+
+# OS files
+Thumbs.db
+.DS_Store

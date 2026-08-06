@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark Theme with Orange Accent - Full Black */
+:root {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-card: #111111;
+  --bg-hover: #1a1a1a;
+  --bg-input: #0a0a0a;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --accent-orange: #ff6b00;
+  --accent-orange-light: #ff8c38;
+  --accent-orange-dark: #cc5500;
+  --border-color: #1a1a1a;
+  --shadow-color: rgba(255, 107, 0, 0.1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  background-color: #000000;
+}
+
+body {
+  background-color: #000000;
+  color: #ffffff;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar Styling - Orange */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ff6b00;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ff8c38;
+}
+
+/* Selection Color - Orange */
+::selection {
+  background: #ff6b00;
+  color: #ffffff;
+}
+
+/* Input Fields */
+input, textarea, select {
+  background-color: #0a0a0a !important;
+  border-color: #1a1a1a !important;
+  color: #ffffff !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: #ff6b00 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.2) !important;
+}
+
+/* Card Styles */
+.card {
+  background-color: #111111;
+  border: 1px solid #1a1a1a;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  border-color: #ff6b00;
+  box-shadow: 0 4px 20px rgba(255, 107, 0, 0.05);
+}
+
+/* Button Styles */
+.btn-primary {
+  background-color: #ff6b00;
+  color: #ffffff;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: #cc5500;
+  box-shadow: 0 4px 15px rgba(255, 107, 0, 0.3);
+}
+
+.btn-secondary {
+  background-color: #1a1a1a;
+  color: #ffffff;
+  border: 1px solid #2a2a2a;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #2a2a2a;
+  border-color: #ff6b00;
+}
+
+/* Link Styles */
+a {
+  color: #ff6b00;
+  transition: color 0.3s ease;
+}
+
+a:hover {
+  color: #ff8c38;
+}
+
+/* Badge Styles */
+.badge-orange {
+  background-color: rgba(255, 107, 0, 0.15);
+  color: #ff6b00;
+}
+
+.badge-orange-filled {
+  background-color: #ff6b00;
+  color: #ffffff;
+}
+
+/* Status Colors */
+.status-todo { background-color: rgba(255, 107, 0, 0.2); color: #ff6b00; }
+.status-planning { background-color: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.status-progress { background-color: rgba(234, 179, 8, 0.2); color: #eab308; }
+.status-review { background-color: rgba(168, 85, 247, 0.2); color: #a855f7; }
+.status-done { background-color: rgba(34, 197, 94, 0.2); color: #22c55e; }
+
+/* Sidebar */
+.sidebar {
+  background-color: #0a0a0a;
+  border-right: 1px solid #1a1a1a;
+}
+
+.sidebar-item {
+  color: #666666;
+  transition: all 0.3s ease;
+}
+
+.sidebar-item:hover {
+  color: #ffffff;
+  background-color: #1a1a1a;
+}
+
+.sidebar-item.active {
+  color: #ff6b00;
+  background-color: rgba(255, 107, 0, 0.1);
+}
+
+/* Header */
+.header {
+  background-color: #0a0a0a;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+/* Dashboard Stats */
+.stat-card {
+  background-color: #111111;
+  border: 1px solid #1a1a1a;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  border-color: #ff6b00;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(255, 107, 0, 0.05);
+}
+
+.stat-icon {
+  background-color: rgba(255, 107, 0, 0.1);
+  color: #ff6b00;
+}
