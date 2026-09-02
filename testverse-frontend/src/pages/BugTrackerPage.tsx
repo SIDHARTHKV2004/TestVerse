@@ -5,27 +5,14 @@ import {
   Bug, Image, Upload, X, Trash2, Eye, Edit2, GripVertical,
   Save, FileImage, Maximize2, User, Calendar, Tag, Layers, Info
 } from 'lucide-react';
+import { createBug, BugReport as ApiBugReport } from '../services/api';
 
-interface BugReport {
+// Extend the API BugReport type to match our local requirements
+interface BugReport extends ApiBugReport {
   id: number;
-  title: string;
-  description: string;
   status: 'Open' | 'In Progress' | 'Resolved' | 'Closed';
   priority: 'Low' | 'Medium' | 'High' | 'Critical';
   severity: 'Minor' | 'Major' | 'Critical' | 'Blocker';
-  stepsToReproduce?: string;
-  expectedResult?: string;
-  actualResult?: string;
-  screenshotUrl?: string;
-  screenshotFile?: string;
-  assigneeId?: number;
-  assigneeName?: string;
-  reporterId: number;
-  reporterName?: string;
-  projectId?: number;
-  projectName?: string;
-  createdAt: string;
-  updatedAt?: string;
 }
 
 interface DragState {
@@ -34,7 +21,8 @@ interface DragState {
 }
 
 const BugTrackerPage: React.FC = () => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
+  const token = localStorage.getItem('token');
   const [bugs, setBugs] = useState<BugReport[]>([]);
   const [filteredBugs, setFilteredBugs] = useState<BugReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +65,7 @@ const BugTrackerPage: React.FC = () => {
     applyFilters();
   }, [bugs, searchTerm, filterStatus, filterPriority]);
 
-  const fetchBugs = async () => {
+  const fetchBugs = async (): Promise<void> => {
     setLoading(true);
     try {
       const response = await fetch('http://localhost:8080/api/bugs', {
@@ -89,7 +77,17 @@ const BugTrackerPage: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setBugs(Array.isArray(data) ? data : []);
+        // Ensure each bug has an id and convert status/priority/severity to match
+        const formattedBugs: BugReport[] = (Array.isArray(data) ? data : []).map((bug: any) => ({
+          ...bug,
+          id: bug.id || 0,
+          status: bug.status || 'Open',
+          priority: bug.priority || 'Medium',
+          severity: bug.severity || 'Major',
+          reporterId: bug.reporterId || 0,
+          createdAt: bug.createdAt || new Date().toISOString(),
+        }));
+        setBugs(formattedBugs);
       } else {
         setBugs([]);
       }
@@ -101,7 +99,7 @@ const BugTrackerPage: React.FC = () => {
     }
   };
 
-  const applyFilters = () => {
+  const applyFilters = (): void => {
     let result = bugs;
 
     if (searchTerm) {
@@ -122,7 +120,7 @@ const BugTrackerPage: React.FC = () => {
     setFilteredBugs(result);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -144,42 +142,64 @@ const BugTrackerPage: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const removeImage = (isEdit: boolean = false) => {
-    setFormData({ ...formData, screenshotFile: '' });
-    if (isEdit && editFileInputRef.current) {
-      editFileInputRef.current.value = '';
+  const handleEditImageUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
     }
-    if (!isEdit && fileInputRef.current) {
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setFormData({ ...formData, screenshotFile: base64String });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = (): void => {
+    setFormData({ ...formData, screenshotFile: '' });
+    if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (editFileInputRef.current) {
+      editFileInputRef.current.value = '';
     }
   };
 
-  const openScreenshotModal = (imageData: string) => {
+  const openScreenshotModal = (imageData: string): void => {
     setSelectedScreenshot(imageData);
     setShowScreenshotModal(true);
   };
 
-  const openViewModal = (bug: BugReport) => {
+  const openViewModal = (bug: BugReport): void => {
     setViewingBug(bug);
     setShowViewModal(true);
   };
 
-  const handleDragStart = (e: React.DragEvent, bugId: number, status: string) => {
+  const handleDragStart = (e: React.DragEvent, bugId: number, status: string): void => {
     setDragState({ bugId, sourceStatus: status });
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', `${bugId}`);
   };
 
-  const handleDragEnd = (e: React.DragEvent) => {
+  const handleDragEnd = (): void => {
     setDragState({ bugId: null, sourceStatus: null });
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent): void => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+  const handleDrop = async (e: React.DragEvent, targetStatus: string): Promise<void> => {
     e.preventDefault();
 
     const bugIdStr = e.dataTransfer.getData('text/plain');
@@ -212,49 +232,75 @@ const BugTrackerPage: React.FC = () => {
       });
     } catch (error) {
       console.error('Error updating bug status:', error);
-      setBugs(prevBugs =>
-          prevBugs.map(b =>
-              b.id === bugId ? { ...b, status: sourceStatus as BugReport['status'] } : b
-          )
+      // Revert on error
+      const revertedBugs = bugs.map(b =>
+          b.id === bugId ? { ...b, status: sourceStatus as BugReport['status'] } : b
       );
+      setBugs(revertedBugs);
     }
   };
 
-  const handleCreateBug = async (e: React.FormEvent) => {
+  // ============ CREATE BUG ============
+
+  const handleCreateBug = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
+
     try {
+      // Format the bug data for backend
       const bugData = {
-        ...formData,
-        reporterId: user?.id,
-        reporterName: user?.name,
+        title: formData.title?.trim() || '',
+        description: formData.description?.trim() || '',
+        status: formData.status || 'OPEN',
+        priority: formData.priority || 'MEDIUM',
+        severity: formData.severity || 'MEDIUM',
+        stepsToReproduce: formData.stepsToReproduce?.trim() || '',
+        expectedResult: formData.expectedResult?.trim() || '',
+        actualResult: formData.actualResult?.trim() || '',
+        projectName: '',
+        reporterName: user?.name || 'Unknown',
+        assigneeName: '',
         screenshotUrl: formData.screenshotFile || '',
       };
 
-      const response = await fetch('http://localhost:8080/api/bugs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(bugData),
-      });
+      console.log('📤 Sending bug data:', bugData);
 
-      if (response.ok) {
-        const newBug = await response.json();
-        setBugs([newBug, ...bugs]);
-        setShowModal(false);
-        resetForm();
-        alert('Bug reported successfully!');
-      } else {
-        alert('Failed to create bug');
+      // Validate required fields
+      if (!bugData.title) {
+        alert('❌ Bug title is required!');
+        return;
       }
-    } catch (error) {
-      console.error('Error creating bug:', error);
-      alert('Network error. Please try again.');
+
+      if (!bugData.description) {
+        alert('❌ Bug description is required!');
+        return;
+      }
+
+      const newBug = await createBug(bugData);
+      console.log('✅ Bug created successfully:', newBug);
+
+      // Update the bugs list with proper type
+      const formattedBug: BugReport = {
+        ...newBug,
+        id: newBug.id || 0,
+        status: (newBug.status as BugReport['status']) || 'Open',
+        priority: (newBug.priority as BugReport['priority']) || 'Medium',
+        severity: (newBug.severity as BugReport['severity']) || 'Major',
+        reporterId: newBug.reporterId || 0,
+        createdAt: newBug.createdAt || new Date().toISOString(),
+      };
+
+      setBugs([formattedBug, ...bugs]);
+      setShowModal(false);
+      resetForm();
+      alert('✅ Bug reported successfully!');
+    } catch (error: any) {
+      console.error('❌ Error creating bug:', error);
+      const errorMessage = error.message || 'Please check: 1) Backend is running on port 8080, 2) You are logged in, 3) You have admin or tester role';
+      alert(`❌ Failed to create bug: ${errorMessage}`);
     }
   };
 
-  const openEditModal = (bug: BugReport) => {
+  const openEditModal = (bug: BugReport): void => {
     setEditingBug(bug);
     setFormData({
       title: bug.title,
@@ -270,7 +316,7 @@ const BugTrackerPage: React.FC = () => {
     setShowEditModal(true);
   };
 
-  const handleEditBug = async (e: React.FormEvent) => {
+  const handleEditBug = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!editingBug) return;
 
@@ -291,21 +337,30 @@ const BugTrackerPage: React.FC = () => {
 
       if (response.ok) {
         const updatedBug = await response.json();
-        setBugs(bugs.map(b => b.id === editingBug.id ? updatedBug : b));
+        const formattedBug: BugReport = {
+          ...updatedBug,
+          id: updatedBug.id || 0,
+          status: updatedBug.status || 'Open',
+          priority: updatedBug.priority || 'Medium',
+          severity: updatedBug.severity || 'Major',
+          reporterId: updatedBug.reporterId || 0,
+          createdAt: updatedBug.createdAt || new Date().toISOString(),
+        };
+        setBugs(bugs.map(b => b.id === editingBug.id ? formattedBug : b));
         setShowEditModal(false);
         setEditingBug(null);
         resetForm();
-        alert('Bug updated successfully!');
+        alert('✅ Bug updated successfully!');
       } else {
-        alert('Failed to update bug');
+        alert('❌ Failed to update bug');
       }
     } catch (error) {
       console.error('Error updating bug:', error);
-      alert('Network error. Please try again.');
+      alert('❌ Network error. Please try again.');
     }
   };
 
-  const handleDeleteBug = async (id: number) => {
+  const handleDeleteBug = async (id: number): Promise<void> => {
     if (!confirm('Are you sure you want to delete this bug?')) return;
     try {
       const response = await fetch(`http://localhost:8080/api/bugs/${id}`, {
@@ -315,17 +370,17 @@ const BugTrackerPage: React.FC = () => {
 
       if (response.ok) {
         setBugs(bugs.filter(b => b.id !== id));
-        alert('Bug deleted successfully!');
+        alert('✅ Bug deleted successfully!');
       } else {
-        alert('Failed to delete bug');
+        alert('❌ Failed to delete bug');
       }
     } catch (error) {
       console.error('Error deleting bug:', error);
-      alert('Network error. Please try again.');
+      alert('❌ Network error. Please try again.');
     }
   };
 
-  const resetForm = () => {
+  const resetForm = (): void => {
     setFormData({
       title: '',
       description: '',
@@ -345,7 +400,7 @@ const BugTrackerPage: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): string => {
     const colors: Record<string, string> = {
       'Open': 'bg-red-500/20 text-red-400 border-red-500/30',
       'In Progress': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
@@ -355,7 +410,7 @@ const BugTrackerPage: React.FC = () => {
     return colors[status] || 'bg-gray-500/20 text-gray-400';
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string): JSX.Element => {
     switch (status) {
       case 'Open': return <AlertCircle size={14} />;
       case 'In Progress': return <Clock size={14} />;
@@ -365,7 +420,7 @@ const BugTrackerPage: React.FC = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string): string => {
     const colors: Record<string, string> = {
       'Critical': 'text-red-500 bg-red-500/10',
       'High': 'text-orange-500 bg-orange-500/10',
@@ -376,6 +431,16 @@ const BugTrackerPage: React.FC = () => {
   };
 
   const statuses: BugReport['status'][] = ['Open', 'In Progress', 'Resolved', 'Closed'];
+
+  // Helper function to safely format date
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return 'N/A';
+    }
+  };
 
   if (loading) {
     return (
@@ -541,7 +606,7 @@ const BugTrackerPage: React.FC = () => {
                                   <div className="flex items-center gap-2 mt-2 text-[10px] text-[#666666]">
                                     <span>By {bug.reporterName || 'Unknown'}</span>
                                     <span>•</span>
-                                    <span>{new Date(bug.createdAt).toLocaleDateString()}</span>
+                                    <span>{formatDate(bug.createdAt)}</span>
                                   </div>
 
                                   <div className="mt-1 text-[8px] text-[#444444] flex items-center gap-1">
@@ -709,7 +774,7 @@ const BugTrackerPage: React.FC = () => {
                       <label className="text-[10px] text-[#666666] uppercase tracking-wider">Created</label>
                       <p className="text-white text-sm flex items-center gap-1">
                         <Calendar size={14} className="text-[#666666]" />
-                        {new Date(viewingBug.createdAt).toLocaleDateString()}
+                        {formatDate(viewingBug.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -846,7 +911,7 @@ const BugTrackerPage: React.FC = () => {
                           ref={fileInputRef}
                           type="file"
                           accept="image/*"
-                          onChange={(e) => handleImageUpload(e, false)}
+                          onChange={handleImageUpload}
                           className="hidden"
                       />
                       <button
@@ -862,7 +927,7 @@ const BugTrackerPage: React.FC = () => {
                             <span className="text-xs text-green-400">✓ Image uploaded</span>
                             <button
                                 type="button"
-                                onClick={() => removeImage(false)}
+                                onClick={removeImage}
                                 className="text-red-400 hover:text-red-300 text-xs"
                             >
                               Remove
@@ -1019,7 +1084,7 @@ const BugTrackerPage: React.FC = () => {
                           ref={editFileInputRef}
                           type="file"
                           accept="image/*"
-                          onChange={(e) => handleImageUpload(e, true)}
+                          onChange={handleEditImageUpload}
                           className="hidden"
                       />
                       <button
@@ -1035,7 +1100,7 @@ const BugTrackerPage: React.FC = () => {
                             <span className="text-xs text-green-400">✓ Image uploaded</span>
                             <button
                                 type="button"
-                                onClick={() => removeImage(true)}
+                                onClick={removeImage}
                                 className="text-red-400 hover:text-red-300 text-xs"
                             >
                               Remove

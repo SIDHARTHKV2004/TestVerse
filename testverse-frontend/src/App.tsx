@@ -1,93 +1,109 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { LoginPage } from './pages/LoginPage';
+import MainLayout from './components/MainLayout';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
-import AutomationPage from './pages/AutomationPage';
 import TasksPage from './pages/TasksPage';
 import ProjectsPage from './pages/ProjectsPage';
-import CommunityPage from './pages/CommunityPage';
-import ProfilePage from './pages/ProfilePage';
-import RegisterPage from './pages/RegisterPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import BugTrackerPage from './pages/BugTrackerPage';
+import AutomationPage from './pages/AutomationPage';
+import CommunityPage from './pages/CommunityPage';
 import ChatPage from './pages/ChatPage';
 import TeamPage from './pages/TeamPage';
-import AdminUsersPage from './pages/AdminUsersPage';
-import MainLayout from './components/MainLayout';
+import UsersPage from './pages/AdminUsersPage';
+import ProfilePage from './pages/ProfilePage';
+import { LeaderboardPage } from './pages/LeaderboardPage';
+import { ManualTestingPage } from './pages/ManualTestingPage';
+import { NotesPage } from './pages/NotesPage';
+import SearchPage from './pages/SearchPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import PendingApprovalPage from './pages/PendingApprovalPage';
 
+// ✅ Component to sync URL with sidebar
+const RouteSync: React.FC<{ onNavigate: (page: string) => void }> = ({ onNavigate }) => {
+    const location = useLocation();
+
+    useEffect(() => {
+        // Get the page name from URL path
+        const path = location.pathname.replace('/', '');
+        const page = path || 'dashboard';
+        onNavigate(page);
+    }, [location, onNavigate]);
+
+    return null;
+};
+
 const AppContent: React.FC = () => {
+    const { isAuthenticated } = useAuth();
     const [currentPage, setCurrentPage] = useState('dashboard');
-    const { isAuthenticated, isPending } = useAuth();
 
-    // If not authenticated, show login/register/forgot pages
     if (!isAuthenticated) {
-        // If account is pending approval, show pending page
-        if (isPending) {
-            return <PendingApprovalPage onNavigate={setCurrentPage} />;
-        }
-
-        // Show Register page
-        if (currentPage === 'register') {
-            return <RegisterPage onNavigate={setCurrentPage} />;
-        }
-        // Show Forgot Password page
-        if (currentPage === 'forgot') {
-            return <ForgotPasswordPage onNavigate={setCurrentPage} />;
-        }
-        // Default: Show Login page
         return (
-            <LoginPage onNavigate={(page: string) => {
-                if (page === 'register') setCurrentPage('register');
-                else if (page === 'forgot') setCurrentPage('forgot');
-                else setCurrentPage('login');
-            }} />
+            <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/pending-approval" element={<PendingApprovalPage />} />
+                <Route path="*" element={<Navigate to="/login" />} />
+            </Routes>
         );
     }
 
-    const getPageContent = () => {
-        switch (currentPage) {
-            case 'dashboard':
-                return <DashboardPage onNavigate={setCurrentPage} />;
-            case 'automation':
-                return <AutomationPage />;
-            case 'tasks':
-                return <TasksPage />;
-            case 'projects':
-                return <ProjectsPage />;
-            case 'community':
-                return <CommunityPage />;
-            case 'profile':
-                return <ProfilePage />;
-            case 'bugs':
-                return <BugTrackerPage />;
-            case 'chat':
-                return <ChatPage />;
-            case 'team':
-                return <TeamPage />;
-            case 'users':
-                return <AdminUsersPage />;
-            default:
-                return <DashboardPage onNavigate={setCurrentPage} />;
-        }
+    const handleNavigate = (page: string) => {
+        setCurrentPage(page);
     };
 
     return (
-        <MainLayout currentPage={currentPage} onNavigate={setCurrentPage}>
-            {getPageContent()}
+        <MainLayout currentPage={currentPage} onNavigate={handleNavigate}>
+            {/* ✅ Sync URL changes with sidebar */}
+            <RouteSync onNavigate={handleNavigate} />
+            <Routes>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/projects" element={<ProjectsPage />} />
+                <Route path="/bugs" element={<BugTrackerPage />} />
+                <Route path="/automation" element={<AutomationPage />} />
+                <Route path="/community" element={<CommunityPage />} />
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/team" element={<TeamPage />} />
+                <Route path="/users" element={<UsersPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/leaderboard" element={<LeaderboardPage />} />
+                <Route path="/manual-testing" element={<ManualTestingPage />} />
+                <Route path="/notes" element={<NotesPage />} />
+                <Route path="/search" element={
+                    <SearchPage
+                        query=""
+                        tasks={[]}
+                        projects={[]}
+                        bugs={[]}
+                        users={[]}
+                        onTaskClick={() => {}}
+                        onProjectClick={() => {}}
+                        onBugClick={() => {}}
+                        onUserClick={() => {}}
+                    />
+                } />
+                <Route path="/" element={<Navigate to="/dashboard" />} />
+                <Route path="*" element={<Navigate to="/dashboard" />} />
+            </Routes>
         </MainLayout>
     );
 };
 
-function App() {
+const App: React.FC = () => {
     return (
-        <ThemeProvider>
-            <AuthProvider>
-                <AppContent />
-            </AuthProvider>
-        </ThemeProvider>
+        <AuthProvider>
+            <ThemeProvider>
+                <Router>
+                    <AppContent />
+                </Router>
+            </ThemeProvider>
+        </AuthProvider>
     );
-}
+};
 
 export default App;

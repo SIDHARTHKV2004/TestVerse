@@ -1,130 +1,249 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, Send, Users, Clock, Check, X, User, Mail } from 'lucide-react';
+import { User, Check, X, Clock, AlertCircle, RefreshCw, Trash2, UserCheck, UserX, Shield } from 'lucide-react';
 
-interface User {
+interface UserData {
     id: number;
-    username: string;
     email: string;
     name: string;
     role: string;
-    status: string;
+    status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
     createdAt: string;
 }
 
-interface Team {
-    id: number;
-    name: string;
-    members: any[];
-}
-
 const AdminUsersPage: React.FC = () => {
-    const { token, isAdmin } = useAuth();
-    const [allUsers, setAllUsers] = useState<User[]>([]);
+    const { user } = useAuth();
+    const token = localStorage.getItem('token');
+    const [users, setUsers] = useState<UserData[]>([]);
+    const [pendingUsers, setPendingUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(true);
-    const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-    const [teams, setTeams] = useState<Team[]>([]);
-    const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
-    const [invitingUserId, setInvitingUserId] = useState<number | null>(null);
+    const [actionLoading, setActionLoading] = useState<number | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
 
     useEffect(() => {
-        if (isAdmin) {
-            fetchAllUsers();
-            fetchTeams();
-        }
-    }, [isAdmin]);
+        fetchUsers();
+    }, []);
 
-    const fetchAllUsers = async () => {
+    const fetchUsers = async (): Promise<void> => {
+        setLoading(true);
+        setError(null);
         try {
             const response = await fetch('http://localhost:8080/api/admin/users', {
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
-            if (response.ok) {
-                const data = await response.json();
-                setAllUsers(data);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to fetch users');
             }
-        } catch (error) {
-            console.error('Error fetching users:', error);
+
+            const data = await response.json();
+            setUsers(data);
+
+            const pending = data.filter((u: UserData) => u.status === 'PENDING');
+            setPendingUsers(pending);
+
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to fetch users';
+            console.error('❌ Error fetching users:', errorMessage);
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchTeams = async () => {
+    const handleApprove = async (userId: number): Promise<void> => {
+        setActionLoading(userId);
         try {
-            const response = await fetch('http://localhost:8080/api/teams', {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setTeams(data);
-                if (data.length > 0) {
-                    setSelectedTeamId(data[0].id);
+            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/approve`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to approve user');
             }
-        } catch (error) {
-            console.error('Error fetching teams:', error);
+
+            alert('✅ User approved successfully!');
+            await fetchUsers();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to approve user';
+            console.error('❌ Error approving user:', errorMessage);
+            setError(errorMessage);
+        } finally {
+            setActionLoading(null);
         }
     };
 
-    const handleSendInvitation = async (userId: number) => {
-        if (!selectedTeamId) {
-            setMessage({ text: '❌ Please select a team first', type: 'error' });
-            setTimeout(() => setMessage(null), 3000);
+    const handleReject = async (userId: number): Promise<void> => {
+        if (!confirm('Are you sure you want to reject this user?')) return;
+
+        setActionLoading(userId);
+        try {
+            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/reject`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to reject user');
+            }
+
+            alert('✅ User rejected successfully!');
+            await fetchUsers();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to reject user';
+            console.error('❌ Error rejecting user:', errorMessage);
+            setError(errorMessage);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleSuspend = async (userId: number): Promise<void> => {
+        if (!confirm('Are you sure you want to suspend this user?')) return;
+
+        setActionLoading(userId);
+        try {
+            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/suspend`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to suspend user');
+            }
+
+            alert('✅ User suspended successfully!');
+            await fetchUsers();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to suspend user';
+            console.error('❌ Error suspending user:', errorMessage);
+            setError(errorMessage);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleActivate = async (userId: number): Promise<void> => {
+        setActionLoading(userId);
+        try {
+            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/activate`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to activate user');
+            }
+
+            alert('✅ User activated successfully!');
+            await fetchUsers();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to activate user';
+            console.error('❌ Error activating user:', errorMessage);
+            setError(errorMessage);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // ✅ SECURE DELETE FUNCTION - Prevents admin deletion
+    const handleDeleteUser = async (userId: number): Promise<void> => {
+        // Get the user being deleted
+        const userToDelete = users.find(u => u.id === userId);
+
+        // ❌ Prevent deleting your own account
+        if (userId === user?.id) {
+            alert('❌ You cannot delete your own admin account!');
             return;
         }
 
-        setInvitingUserId(userId);
+        // ❌ COMPLETELY PREVENT deleting other admin accounts
+        if (userToDelete?.role === 'ADMIN') {
+            alert('❌ Admin accounts cannot be deleted for security reasons.\n\nIf you need to remove this admin, please contact the system administrator.');
+            return;
+        }
+
+        // ✅ Only allow deletion of non-admin users with strong confirmation
+        if (!confirm(`⚠️ Are you sure you want to delete user "${userToDelete?.name}"?\n\nThis action will permanently remove this user and cannot be undone!`)) {
+            return;
+        }
+
+        // ✅ Double confirmation for extra safety
+        if (!confirm(`Are you absolutely sure? This will delete all data associated with "${userToDelete?.name}".`)) {
+            return;
+        }
+
+        setActionLoading(userId);
         try {
-            const response = await fetch('http://localhost:8080/api/notifications/invite', {
-                method: 'POST',
+            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}`, {
+                method: 'DELETE',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    userId: userId,
-                    teamId: selectedTeamId,
-                }),
+                    'Content-Type': 'application/json'
+                }
             });
 
-            if (response.ok) {
-                setMessage({ text: '✅ Invitation sent successfully!', type: 'success' });
-                setTimeout(() => setMessage(null), 3000);
-            } else {
-                const error = await response.json();
-                setMessage({ text: '❌ ' + (error.error || 'Failed to send invitation'), type: 'error' });
-                setTimeout(() => setMessage(null), 3000);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to delete user');
             }
-        } catch (error) {
-            console.error('Error sending invitation:', error);
-            setMessage({ text: '❌ Network error. Please try again.', type: 'error' });
-            setTimeout(() => setMessage(null), 3000);
+
+            alert('✅ User deleted successfully!');
+            await fetchUsers();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to delete user';
+            console.error('❌ Error deleting user:', errorMessage);
+            setError(errorMessage);
         } finally {
-            setInvitingUserId(null);
+            setActionLoading(null);
         }
     };
 
-    // Get users not in the selected team
-    const getAvailableUsers = () => {
-        if (!selectedTeamId) return allUsers;
-        const team = teams.find(t => t.id === selectedTeamId);
-        if (!team) return allUsers;
-        const memberIds = team.members?.map(m => m.id) || [];
-        return allUsers.filter(u => !memberIds.includes(u.id));
+    const getStatusBadge = (status: string): string => {
+        const styles: Record<string, string> = {
+            'PENDING': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+            'ACTIVE': 'bg-green-500/20 text-green-400 border-green-500/30',
+            'SUSPENDED': 'bg-red-500/20 text-red-400 border-red-500/30',
+            'REJECTED': 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+        };
+        return styles[status] || 'bg-gray-500/20 text-gray-400';
     };
 
-    if (!isAdmin) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center text-[#666666]">
-                    <div className="text-4xl mb-4">🔒</div>
-                    <p className="text-lg">Access Denied</p>
-                    <p className="text-sm">Only Admin can access this page</p>
-                </div>
-            </div>
-        );
-    }
+    const getStatusIcon = (status: string): JSX.Element => {
+        switch (status) {
+            case 'PENDING': return <Clock size={14} className="text-yellow-400" />;
+            case 'ACTIVE': return <UserCheck size={14} className="text-green-400" />;
+            case 'SUSPENDED': return <UserX size={14} className="text-red-400" />;
+            case 'REJECTED': return <X size={14} className="text-gray-400" />;
+            default: return <AlertCircle size={14} />;
+        }
+    };
+
+    const isCurrentUser = (userId: number): boolean => {
+        return userId === user?.id;
+    };
 
     if (loading) {
         return (
@@ -134,119 +253,211 @@ const AdminUsersPage: React.FC = () => {
         );
     }
 
-    const availableUsers = getAvailableUsers();
+    const displayedUsers = activeTab === 'pending' ? pendingUsers : users;
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">👥 User Management</h1>
-                    <p className="text-[#666666] text-sm">View all users and send team invitations</p>
+                    <h1 className="text-2xl font-bold text-white">User Management</h1>
+                    <p className="text-[#666666] text-sm">
+                        {pendingUsers.length} users pending approval • {users.length} total users
+                    </p>
+                    <p className="text-xs text-[#666666] mt-1">
+                        🔒 Admin accounts cannot be deleted for security reasons
+                    </p>
                 </div>
-                <div className="bg-[#ff6b00]/20 text-[#ff6b00] px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-                    <Users size={16} />
-                    Total Users: {allUsers.length}
-                </div>
+                <button
+                    onClick={fetchUsers}
+                    className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                >
+                    <RefreshCw size={18} />
+                    Refresh
+                </button>
             </div>
 
-            {message && (
-                <div className={`p-4 rounded-lg ${
-                    message.type === 'success'
-                        ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
-                }`}>
-                    {message.text}
+            {error && (
+                <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-center gap-2">
+                    <AlertCircle size={16} />
+                    {error}
                 </div>
             )}
 
-            {/* Team Selection */}
-            {teams.length > 0 && (
-                <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-4">
-                    <label className="block text-sm text-[#666666] mb-2">Select Team for Invitations</label>
-                    <select
-                        value={selectedTeamId || ''}
-                        onChange={(e) => setSelectedTeamId(Number(e.target.value))}
-                        className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white w-full max-w-md focus:outline-none focus:border-[#ff6b00]"
-                    >
-                        {teams.map((team) => (
-                            <option key={team.id} value={team.id}>
-                                {team.name} ({team.members?.length || 0} members)
-                            </option>
-                        ))}
-                    </select>
+            <div className="flex gap-2 border-b border-[#1a1a1a] pb-2">
+                <button
+                    onClick={() => setActiveTab('pending')}
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                        activeTab === 'pending'
+                            ? 'bg-[#ff6b00] text-white'
+                            : 'text-[#666666] hover:text-white hover:bg-[#1a1a1a]'
+                    }`}
+                >
+                    Pending Approvals ({pendingUsers.length})
+                </button>
+                <button
+                    onClick={() => setActiveTab('all')}
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                        activeTab === 'all'
+                            ? 'bg-[#ff6b00] text-white'
+                            : 'text-[#666666] hover:text-white hover:bg-[#1a1a1a]'
+                    }`}
+                >
+                    All Users ({users.length})
+                </button>
+            </div>
+
+            {displayedUsers.length === 0 ? (
+                <div className="text-center py-16 bg-[#111111] border border-[#1a1a1a] rounded-xl">
+                    {activeTab === 'pending' ? (
+                        <>
+                            <UserCheck size={48} className="mx-auto mb-3 text-green-500" />
+                            <p className="text-lg text-white">No pending approvals</p>
+                            <p className="text-sm text-[#666666]">All users have been processed</p>
+                        </>
+                    ) : (
+                        <>
+                            <User size={48} className="mx-auto mb-3 text-[#444444]" />
+                            <p className="text-lg text-white">No users found</p>
+                            <p className="text-sm text-[#666666]">Users will appear here when they register</p>
+                        </>
+                    )}
                 </div>
-            )}
+            ) : (
+                <div className="space-y-3">
+                    {displayedUsers.map((userData) => {
+                        const isOwnAccount = isCurrentUser(userData.id);
+                        const isAdminUser = userData.role === 'ADMIN';
 
-            {/* All Users - Send Invitations */}
-            <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-5">
-                <h3 className="text-white font-medium mb-4 flex items-center gap-2">
-                    <Send size={18} className="text-[#ff6b00]" />
-                    Send Invitations
-                </h3>
-                <p className="text-sm text-[#666666] mb-4">Invite users to join your team. They will receive a notification.</p>
-
-                {availableUsers.length === 0 ? (
-                    <p className="text-[#666666] text-center py-4">All users are already in the team</p>
-                ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {availableUsers.map((u) => (
-                            <div key={u.id} className="flex items-center justify-between bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-3 hover:border-[#ff6b00] transition-all">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-[#ff6b00]/20 flex items-center justify-center text-[#ff6b00] font-bold">
-                                        {u.name?.charAt(0) || 'U'}
+                        return (
+                            <div
+                                key={userData.id}
+                                className={`bg-[#111111] border rounded-lg p-4 transition-all ${
+                                    isOwnAccount
+                                        ? 'border-[#ff6b00]/30 bg-[#1a1a1a]'
+                                        : isAdminUser
+                                            ? 'border-purple-500/30 bg-[#111111]'
+                                            : 'border-[#1a1a1a] hover:border-[#2a2a2a]'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between">
+                                    <div className="flex items-start gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                            isOwnAccount ? 'bg-[#ff6b00]/20' :
+                                                isAdminUser ? 'bg-purple-500/20' : 'bg-[#1a1a1a]'
+                                        }`}>
+                                            {isAdminUser ? (
+                                                <Shield size={18} className={isOwnAccount ? 'text-[#ff6b00]' : 'text-purple-400'} />
+                                            ) : (
+                                                <User size={18} className={isOwnAccount ? 'text-[#ff6b00]' : 'text-[#666666]'} />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-white font-medium">
+                                                {userData.name}
+                                                {isOwnAccount && (
+                                                    <span className="ml-2 text-xs text-[#ff6b00] font-normal">
+                            (You)
+                          </span>
+                                                )}
+                                                {!isOwnAccount && isAdminUser && (
+                                                    <span className="ml-2 text-xs text-purple-400 font-normal">
+                            (Admin)
+                          </span>
+                                                )}
+                                            </h3>
+                                            <p className="text-sm text-[#666666]">{userData.email}</p>
+                                            <div className="flex items-center gap-3 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            isAdminUser ? 'bg-purple-500/20 text-purple-400' : 'bg-[#1a1a1a] text-[#666666]'
+                        }`}>
+                          {userData.role}
+                        </span>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 ${getStatusBadge(userData.status)}`}>
+                          {getStatusIcon(userData.status)}
+                                                    {userData.status}
+                        </span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-white text-sm font-medium">{u.name}</p>
-                                        <p className="text-xs text-[#666666] flex items-center gap-2">
-                                            @{u.username}
-                                            <span className="text-[#444444]">•</span>
-                                            {u.role}
-                                            <span className="text-[#444444]">•</span>
-                                            <span className="text-[#666666]">{u.email}</span>
-                                        </p>
+
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {userData.status === 'PENDING' && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleApprove(userData.id)}
+                                                    disabled={actionLoading === userData.id}
+                                                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                                >
+                                                    <Check size={14} />
+                                                    Approve
+                                                </button>
+                                                <button
+                                                    onClick={() => handleReject(userData.id)}
+                                                    disabled={actionLoading === userData.id}
+                                                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                                >
+                                                    <X size={14} />
+                                                    Reject
+                                                </button>
+                                            </>
+                                        )}
+
+                                        {userData.status === 'ACTIVE' && !isOwnAccount && (
+                                            <button
+                                                onClick={() => handleSuspend(userData.id)}
+                                                disabled={actionLoading === userData.id}
+                                                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                            >
+                                                <UserX size={14} />
+                                                Suspend
+                                            </button>
+                                        )}
+
+                                        {userData.status === 'SUSPENDED' && (
+                                            <button
+                                                onClick={() => handleActivate(userData.id)}
+                                                disabled={actionLoading === userData.id}
+                                                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                            >
+                                                <UserCheck size={14} />
+                                                Activate
+                                            </button>
+                                        )}
+
+                                        {/* 🔒 DELETE BUTTON - Hidden for admin accounts */}
+                                        {!isOwnAccount && !isAdminUser && (
+                                            <button
+                                                onClick={() => handleDeleteUser(userData.id)}
+                                                disabled={actionLoading === userData.id}
+                                                className="px-3 py-1.5 bg-[#1a1a1a] hover:bg-red-600/20 text-[#666666] hover:text-red-400 rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                            >
+                                                <Trash2 size={14} />
+                                                Delete
+                                            </button>
+                                        )}
+
+                                        {/* Show "Protected" for admin accounts */}
+                                        {!isOwnAccount && isAdminUser && (
+                                            <span className="px-3 py-1.5 bg-purple-500/10 text-purple-400 rounded-lg text-sm flex items-center gap-1 cursor-not-allowed border border-purple-500/20">
+                        <Shield size={14} />
+                        Protected
+                      </span>
+                                        )}
+
+                                        {/* Show "Your Account" for own account */}
+                                        {isOwnAccount && (
+                                            <span className="px-3 py-1.5 bg-[#ff6b00]/10 text-[#ff6b00] rounded-lg text-sm flex items-center gap-1 cursor-not-allowed border border-[#ff6b00]/20">
+                        <UserCheck size={14} />
+                        Your Account
+                      </span>
+                                        )}
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => handleSendInvitation(u.id)}
-                                    disabled={invitingUserId === u.id}
-                                    className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <UserPlus size={16} />
-                                    {invitingUserId === u.id ? 'Sending...' : 'Invite to Team'}
-                                </button>
                             </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* All Users List */}
-            <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-5">
-                <h3 className="text-white font-medium mb-4 flex items-center gap-2">
-                    <Users size={18} className="text-[#666666]" />
-                    All Registered Users
-                </h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {allUsers.map((u) => (
-                        <div key={u.id} className="flex items-center gap-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2">
-                            <div className="w-8 h-8 rounded-full bg-[#ff6b00]/20 flex items-center justify-center text-[#ff6b00] font-bold text-xs">
-                                {u.name?.charAt(0) || 'U'}
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-white text-sm">{u.name}</p>
-                                <p className="text-xs text-[#666666]">@{u.username} • {u.role}</p>
-                            </div>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                                u.status === 'APPROVED' ? 'bg-green-500/20 text-green-400' :
-                                    u.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
-                                        'bg-red-500/20 text-red-400'
-                            }`}>
-                                {u.status}
-                            </span>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
-            </div>
+            )}
         </div>
     );
 };

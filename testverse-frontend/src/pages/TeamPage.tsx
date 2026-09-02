@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Users, UserPlus, Trash2, User, Calendar, Mail, Plus, X, Check, Bell, MessageSquare, Send } from 'lucide-react';
+import { Users, UserPlus, Trash2, User, Plus, X } from 'lucide-react';
 
 interface Team {
     id: number;
@@ -20,28 +20,17 @@ interface User {
     status: string;
 }
 
-interface Notification {
-    id: number;
-    title: string;
-    message: string;
-    type: string;
-    isRead: boolean;
-    isAccepted: boolean;
-    senderId: number;
-    teamId: number;
-    createdAt: string;
-}
-
 const TeamPage: React.FC = () => {
-    const { user, token, isAdmin } = useAuth();
+    const { user, isAdmin } = useAuth();
+    const token = localStorage.getItem('token');
     const [teams, setTeams] = useState<Team[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [showNotifications, setShowNotifications] = useState(false);
-    const [joinRequestSent, setJoinRequestSent] = useState(false);
+    const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
+    const [joining, setJoining] = useState<number | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -49,33 +38,94 @@ const TeamPage: React.FC = () => {
     });
 
     useEffect(() => {
-        fetchTeams();
-        fetchAllUsers();
-        fetchNotifications();
+        fetchData();
+        if (isAdmin) {
+            fetchAllUsers();
+        }
     }, []);
 
-    const fetchTeams = async () => {
+    const fetchData = async (): Promise<void> => {
+        setLoading(true);
+        setError(null);
         try {
-            const response = await fetch('http://localhost:8080/api/teams/my-team', {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setTeams(data);
-                if (data.length > 0) {
-                    setSelectedTeam(data[0]);
+            console.log('🔍 Fetching team data...');
+            console.log('🔍 Is Admin:', isAdmin);
+            console.log('🔍 Token exists:', !!token);
+
+            // ✅ Admin uses different endpoint
+            if (isAdmin) {
+                console.log('📤 Calling /admin-team...');
+                const response = await fetch('http://localhost:8080/api/teams/admin-team', {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+
+                console.log('📥 Admin team response status:', response.status);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ Admin team data:', data);
+
+                    if (data && data.id) {
+                        setTeams([data]);
+                        setSelectedTeam(data);
+                    } else {
+                        setTeams([]);
+                        setSelectedTeam(null);
+                        setError('No team found. Please create one.');
+                    }
+                } else {
+                    const errorData = await response.json();
+                    console.error('❌ Error response:', errorData);
+                    setError(errorData.error || 'Failed to fetch team');
+                    setTeams([]);
+                    setSelectedTeam(null);
+                }
+            } else {
+                // Non-admin: get my teams
+                console.log('📤 Calling /my-teams...');
+                const response = await fetch('http://localhost:8080/api/teams/my-teams', {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+
+                console.log('📥 My teams response status:', response.status);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ My teams data:', data);
+                    setTeams(data || []);
+                    if (data && data.length > 0) {
+                        setSelectedTeam(data[0]);
+                    } else {
+                        setSelectedTeam(null);
+                    }
+                }
+
+                // Fetch available teams for non-admin users
+                console.log('📤 Calling /available...');
+                const availableResponse = await fetch('http://localhost:8080/api/teams/available', {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+
+                console.log('📥 Available teams response status:', availableResponse.status);
+
+                if (availableResponse.ok) {
+                    const data = await availableResponse.json();
+                    console.log('✅ Available teams:', data);
+                    setAvailableTeams(data || []);
                 }
             }
+
         } catch (error) {
-            console.error('Error fetching teams:', error);
+            console.error('❌ Error fetching team data:', error);
+            setError('Network error. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchAllUsers = async () => {
+    const fetchAllUsers = async (): Promise<void> => {
         try {
-            const response = await fetch('http://localhost:8080/api/admin/pending-users', {
+            const response = await fetch('http://localhost:8080/api/admin/users', {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
             if (response.ok) {
@@ -87,21 +137,7 @@ const TeamPage: React.FC = () => {
         }
     };
 
-    const fetchNotifications = async () => {
-        try {
-            const response = await fetch('http://localhost:8080/api/notifications', {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setNotifications(data);
-            }
-        } catch (error) {
-            console.error('Error fetching notifications:', error);
-        }
-    };
-
-    const handleCreateTeam = async (e: React.FormEvent) => {
+    const handleCreateTeam = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
         try {
             const response = await fetch('http://localhost:8080/api/teams', {
@@ -114,13 +150,16 @@ const TeamPage: React.FC = () => {
             });
 
             if (response.ok) {
-                const newTeam = await response.json();
-                setTeams([...teams, newTeam]);
-                setSelectedTeam(newTeam);
+                alert('✅ Team created successfully!');
                 setShowModal(false);
                 setFormData({ name: '', description: '' });
-                alert('✅ Team created successfully!');
-                fetchTeams();
+                await fetchData();
+                if (isAdmin) {
+                    await fetchAllUsers();
+                }
+            } else {
+                const error = await response.json();
+                alert('❌ ' + (error.error || 'Failed to create team'));
             }
         } catch (error) {
             console.error('Error creating team:', error);
@@ -128,7 +167,7 @@ const TeamPage: React.FC = () => {
         }
     };
 
-    const handleAddMember = async (teamId: number, userId: number) => {
+    const handleAddMember = async (teamId: number, userId: number): Promise<void> => {
         try {
             const response = await fetch(`http://localhost:8080/api/teams/${teamId}/members`, {
                 method: 'POST',
@@ -136,13 +175,13 @@ const TeamPage: React.FC = () => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                 },
-                body: JSON.stringify({ studentId: userId }),
+                body: JSON.stringify({ userId: userId }),
             });
 
             if (response.ok) {
                 alert('✅ Member added successfully!');
-                fetchTeams();
-                fetchAllUsers();
+                await fetchData();
+                await fetchAllUsers();
             } else {
                 const error = await response.json();
                 alert('❌ ' + (error.error || 'Failed to add member'));
@@ -153,7 +192,7 @@ const TeamPage: React.FC = () => {
         }
     };
 
-    const handleRemoveMember = async (teamId: number, userId: number) => {
+    const handleRemoveMember = async (teamId: number, userId: number): Promise<void> => {
         if (!confirm('Are you sure you want to remove this member?')) return;
         try {
             const response = await fetch(`http://localhost:8080/api/teams/${teamId}/members/${userId}`, {
@@ -163,8 +202,8 @@ const TeamPage: React.FC = () => {
 
             if (response.ok) {
                 alert('✅ Member removed successfully!');
-                fetchTeams();
-                fetchAllUsers();
+                await fetchData();
+                await fetchAllUsers();
             }
         } catch (error) {
             console.error('Error removing member:', error);
@@ -172,13 +211,10 @@ const TeamPage: React.FC = () => {
         }
     };
 
-    const handleSendJoinRequest = async () => {
-        if (!selectedTeam) {
-            alert('No team available to join');
-            return;
-        }
+    const handleJoinTeam = async (teamId: number): Promise<void> => {
+        setJoining(teamId);
         try {
-            const response = await fetch(`http://localhost:8080/api/teams/${selectedTeam.id}/join-request`, {
+            const response = await fetch(`http://localhost:8080/api/teams/${teamId}/request-join`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -187,27 +223,30 @@ const TeamPage: React.FC = () => {
             });
 
             if (response.ok) {
-                setJoinRequestSent(true);
-                alert('✅ Join request sent to admin!');
+                const data = await response.json();
+                alert('✅ ' + data.message);
+                await fetchData();
             } else {
                 const error = await response.json();
-                alert('❌ ' + (error.error || 'Failed to send request'));
+                alert('❌ ' + (error.error || 'Failed to join team'));
             }
         } catch (error) {
-            console.error('Error sending join request:', error);
+            console.error('Error joining team:', error);
             alert('❌ Network error. Please try again.');
+        } finally {
+            setJoining(null);
         }
     };
 
     // Get users not in team (for Admin to add)
-    const getAvailableUsers = () => {
+    const getAvailableUsers = (): User[] => {
         if (!selectedTeam) return [];
         const memberIds = selectedTeam.members?.map(m => m.id) || [];
         return allUsers.filter(u => !memberIds.includes(u.id) && u.id !== user?.id);
     };
 
     // Check if current user is in team
-    const isUserInTeam = () => {
+    const isUserInTeam = (): boolean => {
         if (!selectedTeam) return false;
         return selectedTeam.members?.some(m => m.id === user?.id) || false;
     };
@@ -216,6 +255,25 @@ const TeamPage: React.FC = () => {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <div className="text-[#666666]">Loading team...</div>
+            </div>
+        );
+    }
+
+    // Show error message
+    if (error && !isAdmin) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h2 className="text-xl font-bold text-white mb-2">Error Loading Team</h2>
+                    <p className="text-[#666666]">{error}</p>
+                    <button
+                        onClick={fetchData}
+                        className="mt-4 bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                        Retry
+                    </button>
+                </div>
             </div>
         );
     }
@@ -249,15 +307,30 @@ const TeamPage: React.FC = () => {
                     <p className="text-sm text-[#666666]">
                         {isAdmin ? 'Create your first team to get started!' : 'No team available. Contact your admin.'}
                     </p>
-                    {!isAdmin && (
-                        <button
-                            onClick={handleSendJoinRequest}
-                            disabled={joinRequestSent}
-                            className="mt-4 bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <Send size={18} />
-                            {joinRequestSent ? 'Request Sent ✓' : 'Request to Join'}
-                        </button>
+                    {!isAdmin && availableTeams.length > 0 && (
+                        <div className="mt-6 max-w-md mx-auto">
+                            <h4 className="text-sm text-[#666666] mb-3">Available Teams to Join:</h4>
+                            <div className="space-y-2">
+                                {availableTeams.map((team) => (
+                                    <div key={team.id} className="flex items-center justify-between bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-3">
+                                        <div className="text-left">
+                                            <p className="text-white text-sm font-medium">{team.name}</p>
+                                            <p className="text-xs text-[#666666]">{team.members?.length || 0} members</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleJoinTeam(team.id)}
+                                            disabled={joining === team.id}
+                                            className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-3 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-50"
+                                        >
+                                            {joining === team.id ? 'Joining...' : 'Join'}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {!isAdmin && availableTeams.length === 0 && (
+                        <p className="text-sm text-[#666666] mt-2">No teams available to join at the moment.</p>
                     )}
                 </div>
             ) : (
@@ -269,7 +342,7 @@ const TeamPage: React.FC = () => {
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <h3 className="text-lg font-bold text-white">{team.name}</h3>
-                                        <p className="text-sm text-[#666666] mt-1">{team.description}</p>
+                                        <p className="text-sm text-[#666666] mt-1">{team.description || 'No description'}</p>
                                         <div className="flex items-center gap-2 mt-2 text-xs text-[#666666]">
                                             <User size={14} />
                                             <span>Lead: {team.admin?.name || 'Admin'}</span>
@@ -280,19 +353,7 @@ const TeamPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Join Request Button for non-members */}
-                                {!isAdmin && !isUserInTeam() && (
-                                    <button
-                                        onClick={handleSendJoinRequest}
-                                        disabled={joinRequestSent}
-                                        className="mt-4 w-full bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <Send size={16} />
-                                        {joinRequestSent ? 'Request Sent ✓' : 'Request to Join Team'}
-                                    </button>
-                                )}
-
-                                {!isAdmin && isUserInTeam() && (
+                                {isUserInTeam() && (
                                     <div className="mt-4 p-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-lg text-center text-sm">
                                         ✅ You are a member of this team
                                     </div>
@@ -319,14 +380,16 @@ const TeamPage: React.FC = () => {
                                                 {member.name?.charAt(0) || 'U'}
                                             </div>
                                             <div>
-                                                <p className="text-white text-sm font-medium">{member.name}</p>
+                                                <p className="text-white text-sm font-medium">
+                                                    {member.name}
+                                                    {member.id === user?.id && (
+                                                        <span className="ml-2 text-[#ff6b00] text-xs">(You)</span>
+                                                    )}
+                                                </p>
                                                 <p className="text-xs text-[#666666] flex items-center gap-2">
-                                                    @{member.username}
+                                                    @{member.username || member.email}
                                                     <span className="text-[#444444]">•</span>
                                                     {member.role}
-                                                    {member.id === user?.id && (
-                                                        <span className="text-[#ff6b00] text-xs">(You)</span>
-                                                    )}
                                                     {member.role === 'ADMIN' && (
                                                         <span className="text-xs text-[#ff6b00]">👑 Admin</span>
                                                     )}
@@ -360,7 +423,7 @@ const TeamPage: React.FC = () => {
                         Add Members to Team
                     </h3>
                     {getAvailableUsers().length === 0 ? (
-                        <p className="text-[#666666] text-center py-4">No pending users available to add</p>
+                        <p className="text-[#666666] text-center py-4">No users available to add</p>
                     ) : (
                         <div className="space-y-2">
                             {getAvailableUsers().map((pendingUser) => (
@@ -371,7 +434,7 @@ const TeamPage: React.FC = () => {
                                         </div>
                                         <div>
                                             <p className="text-white text-sm font-medium">{pendingUser.name}</p>
-                                            <p className="text-xs text-[#666666]">@{pendingUser.username} • {pendingUser.role}</p>
+                                            <p className="text-xs text-[#666666]">@{pendingUser.username || pendingUser.email} • {pendingUser.role}</p>
                                         </div>
                                     </div>
                                     <button

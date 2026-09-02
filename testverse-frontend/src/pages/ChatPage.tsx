@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Send, CheckCheck, Users, Image, X } from 'lucide-react';
+import { Send, CheckCheck, Users, X, User, AlertCircle } from 'lucide-react';
 
 interface Message {
   id: number;
@@ -15,10 +15,8 @@ interface Message {
     id: number;
     name: string;
   };
-  messageType: string;
-  isRead: boolean;
+  isBroadcast: boolean;
   createdAt: string;
-  imageUrl?: string;
 }
 
 interface Team {
@@ -30,21 +28,25 @@ interface Team {
 }
 
 const ChatPage: React.FC = () => {
-  const { user, token, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const token = localStorage.getItem('token');
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<Team | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [showUserList, setShowUserList] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    fetchUsers();
     fetchTeamAndMessages();
-    const interval = setInterval(fetchTeamAndMessages, 3000);
+    const interval = setInterval(() => {
+      if (team) {
+        fetchTeamAndMessages();
+      }
+    }, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -52,38 +54,87 @@ const ChatPage: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (): void => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const fetchTeamAndMessages = async () => {
+  const fetchUsers = async (): Promise<void> => {
+    try {
+      const response = await fetch('http://localhost:8080/api/admin/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const fetchTeamAndMessages = async (): Promise<void> => {
     try {
       setError(null);
 
-      const teamResponse = await fetch('http://localhost:8080/api/teams/my-team', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      console.log('🔍 Fetching chat team data...');
+      console.log('🔍 Is Admin:', isAdmin);
+
+      let teamResponse;
+      if (isAdmin) {
+        console.log('📤 Calling /admin-team for chat...');
+        teamResponse = await fetch('http://localhost:8080/api/teams/admin-team', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+      } else {
+        console.log('📤 Calling /my-teams for chat...');
+        teamResponse = await fetch('http://localhost:8080/api/teams/my-teams', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+      }
+
+      console.log('📥 Team response status:', teamResponse.status);
 
       if (teamResponse.ok) {
-        const teams = await teamResponse.json();
-        if (teams && teams.length > 0) {
-          setTeam(teams[0]);
-          const messagesResponse = await fetch(`http://localhost:8080/api/chat/team/${teams[0].id}`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          });
-          if (messagesResponse.ok) {
-            const data = await messagesResponse.json();
-            setMessages(data || []);
-          }
+        const data = await teamResponse.json();
+        console.log('✅ Team data:', data);
+
+        let teamData;
+
+        if (Array.isArray(data) && data.length > 0) {
+          teamData = data[0];
+        } else if (!Array.isArray(data) && data.id) {
+          teamData = data;
         } else {
-          if (isAdmin) {
-            await createDefaultTeam();
-          } else {
-            setError('You are not assigned to any team yet. Please contact your admin.');
-          }
+          setTeam(null);
+          setLoading(false);
+          return;
+        }
+
+        setTeam(teamData);
+
+        // Fetch messages for this team
+        const messagesResponse = await fetch(`http://localhost:8080/api/messages/team/${teamData.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (messagesResponse.ok) {
+          const messagesData = await messagesResponse.json();
+          setMessages(messagesData || []);
+        } else {
+          setMessages([]);
         }
       } else {
-        setError('Failed to fetch team information');
+        setTeam(null);
+        setMessages([]);
+        if (isAdmin) {
+          setError('No team found. Please go to Team Management and create a team first.');
+        } else {
+          setError('No team found. Please contact your admin.');
+        }
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -93,139 +144,103 @@ const ChatPage: React.FC = () => {
     }
   };
 
-  const createDefaultTeam = async () => {
-    try {
-      const response = await fetch('http://localhost:8080/api/teams', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: 'TestVerse Team',
-          description: 'Default team for all TestVerse members',
-        }),
-      });
-
-      if (response.ok) {
-        const newTeam = await response.json();
-        setTeam(newTeam);
-        setError(null);
-        await fetchTeamAndMessages();
-      }
-    } catch (error) {
-      console.error('Error creating team:', error);
-      setError('Failed to create team. Please try again.');
-    }
-  };
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image size must be less than 5MB');
-        return;
-      }
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeImage = () => {
-    setSelectedImage(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const sendMessage = async (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    if (!newMessage.trim() && !selectedImage) return;
-    if (!team) return;
-
-    setUploading(true);
+    if (!newMessage.trim()) return;
+    if (!team) {
+      alert('❌ Please join a team first!');
+      return;
+    }
 
     try {
-      let imageUrl = '';
-
-      if (selectedImage) {
-        const formData = new FormData();
-        formData.append('image', selectedImage);
-        formData.append('teamId', String(team.id));
-
-        const uploadResponse = await fetch('http://localhost:8080/api/chat/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-          body: formData,
-        });
-
-        if (uploadResponse.ok) {
-          const data = await uploadResponse.json();
-          imageUrl = data.imageUrl;
-        } else {
-          alert('Failed to upload image');
-          setUploading(false);
-          return;
-        }
-      }
-
-      const response = await fetch('http://localhost:8080/api/chat/send', {
+      const response = await fetch('http://localhost:8080/api/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          content: newMessage || (imageUrl ? '📷 Image shared' : ''),
+          content: newMessage.trim(),
           teamId: team.id,
-          messageType: imageUrl ? 'IMAGE' : 'TEXT',
-          imageUrl: imageUrl || '',
+          isBroadcast: false,
         }),
       });
 
       if (response.ok) {
         setNewMessage('');
-        removeImage();
         await fetchTeamAndMessages();
       } else {
         const errorData = await response.json();
-        alert('Failed to send message: ' + (errorData.error || 'Unknown error'));
+        const errorMsg = typeof errorData === 'string' ? errorData : (errorData.error || 'Failed to send message');
+        alert('❌ ' + errorMsg);
       }
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Network error. Please try again.');
-    } finally {
-      setUploading(false);
     }
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const sendBroadcast = async (): Promise<void> => {
+    if (!newMessage.trim()) return;
+
+    try {
+      const response = await fetch('http://localhost:8080/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          content: newMessage.trim(),
+          teamId: null,
+          isBroadcast: true,
+        }),
+      });
+
+      if (response.ok) {
+        setNewMessage('');
+        await fetchTeamAndMessages();
+        alert('✅ Broadcast sent to all users!');
+      } else {
+        const errorData = await response.json();
+        alert('❌ ' + (errorData.error || 'Failed to send broadcast'));
+      }
+    } catch (error) {
+      console.error('Error sending broadcast:', error);
+      alert('Network error. Please try again.');
+    }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
+  const formatTime = (dateString: string): string => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
     }
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    }
-    return date.toLocaleDateString();
   };
 
-  const isOwnMessage = (message: Message) => {
+  const formatDate = (dateString: string): string => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      const today = new Date();
+      if (date.toDateString() === today.toDateString()) {
+        return 'Today';
+      }
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (date.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday';
+      }
+      return date.toLocaleDateString();
+    } catch {
+      return '';
+    }
+  };
+
+  const isOwnMessage = (message: Message): boolean => {
     return message.sender?.id === user?.id;
   };
 
@@ -239,11 +254,19 @@ const ChatPage: React.FC = () => {
 
   if (error) {
     return (
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center max-w-md">
+        <div className="flex items-center justify-center min-h-[400px] p-4">
+          <div className="text-center max-w-md bg-[#111111] border border-[#1a1a1a] rounded-xl p-8">
             <div className="text-6xl mb-4">💬</div>
             <h2 className="text-xl font-bold text-white mb-2">No Team Chat Available</h2>
             <p className="text-[#666666] mb-4">{error}</p>
+            {isAdmin && (
+                <button
+                    onClick={() => window.location.href = '/team'}
+                    className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Go to Team Page
+                </button>
+            )}
           </div>
         </div>
     );
@@ -251,12 +274,21 @@ const ChatPage: React.FC = () => {
 
   if (!team) {
     return (
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
+        <div className="flex items-center justify-center min-h-[400px] p-4">
+          <div className="text-center max-w-md bg-[#111111] border border-[#1a1a1a] rounded-xl p-8">
             <div className="text-6xl mb-4">👥</div>
-            <h2 className="text-2xl font-bold text-white mb-2">No Team Assigned</h2>
-            <p className="text-[#666666]">You haven't been added to a team yet.</p>
-            <p className="text-[#666666] text-sm">Contact your admin to join a team.</p>
+            <h2 className="text-xl font-bold text-white mb-2">No Team Assigned</h2>
+            <p className="text-[#666666] mb-4">You haven't been added to a team yet.</p>
+            {isAdmin ? (
+                <button
+                    onClick={() => window.location.href = '/team'}
+                    className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Go to Team Page
+                </button>
+            ) : (
+                <p className="text-sm text-[#666666]">Contact your admin to join a team.</p>
+            )}
           </div>
         </div>
     );
@@ -271,11 +303,42 @@ const ChatPage: React.FC = () => {
               {team?.name || 'Team'} • {team?.members?.length || 0} members
             </p>
           </div>
-          <div className="flex items-center gap-2 text-[#666666]">
-            <Users size={16} />
-            <span className="text-sm">{team?.members?.length || 0} members</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-[#666666]">
+              <Users size={16} />
+              <span className="text-sm">{team?.members?.length || 0} members</span>
+            </div>
+            {isAdmin && (
+                <button
+                    onClick={() => setShowUserList(!showUserList)}
+                    className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-colors"
+                >
+                  <User size={14} />
+                  Users
+                </button>
+            )}
           </div>
         </div>
+
+        {showUserList && isAdmin && (
+            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-3 mb-4 max-h-40 overflow-y-auto">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-white">All Users</h3>
+                <button onClick={() => setShowUserList(false)} className="text-[#666666] hover:text-white">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {users.map((u) => (
+                    <div key={u.id} className="flex items-center gap-2 text-xs text-[#666666] bg-[#1a1a1a] p-2 rounded-lg">
+                      <User size={12} className="text-[#ff6b00]" />
+                      <span>{u.name}</span>
+                      <span className="text-[10px] text-[#444444]">({u.role})</span>
+                    </div>
+                ))}
+              </div>
+            </div>
+        )}
 
         <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-[#0a0a0a] rounded-xl border border-[#1a1a1a]">
           {messages.length === 0 ? (
@@ -289,6 +352,8 @@ const ChatPage: React.FC = () => {
                 {messages.map((msg, index) => {
                   const isOwn = isOwnMessage(msg);
                   const showDate = index === 0 || formatDate(msg.createdAt) !== formatDate(messages[index - 1].createdAt);
+                  const isBroadcast = msg.isBroadcast;
+
                   return (
                       <div key={msg.id}>
                         {showDate && (
@@ -297,29 +362,26 @@ const ChatPage: React.FC = () => {
                             </div>
                         )}
                         <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[70%] ${isOwn ? 'bg-[#ff6b00]' : 'bg-[#1a1a1a]'} rounded-lg px-4 py-2`}>
+                          <div className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                              isBroadcast
+                                  ? 'bg-purple-500/20 border border-purple-500/30'
+                                  : isOwn
+                                      ? 'bg-[#ff6b00]'
+                                      : 'bg-[#1a1a1a]'
+                          }`}>
                             {!isOwn && (
-                                <p className="text-xs text-[#ff6b00] font-medium mb-1">
-                                  {msg.sender?.name || 'Unknown User'}
+                                <p className={`text-xs font-medium mb-1 ${
+                                    isBroadcast ? 'text-purple-400' : 'text-[#ff6b00]'
+                                }`}>
+                                  {isBroadcast ? '📢 BROADCAST' : msg.sender?.name || 'Unknown User'}
                                 </p>
                             )}
-                            {msg.messageType === 'IMAGE' && msg.imageUrl ? (
-                                <div className="mt-1">
-                                  <img
-                                      src={msg.imageUrl}
-                                      alt="Shared image"
-                                      className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                      onClick={() => window.open(msg.imageUrl, '_blank')}
-                                  />
-                                </div>
-                            ) : (
-                                <p className={`text-sm ${isOwn ? 'text-white' : 'text-gray-300'}`}>
-                                  {msg.content}
-                                </p>
-                            )}
+                            <p className={`text-sm ${isOwn ? 'text-white' : 'text-gray-300'}`}>
+                              {msg.content}
+                            </p>
                             <p className={`text-[10px] ${isOwn ? 'text-orange-200/70' : 'text-[#666666]'} mt-1 flex items-center gap-1`}>
                               {formatTime(msg.createdAt)}
-                              {isOwn && msg.isRead && (
+                              {isOwn && (
                                   <CheckCheck size={12} className="text-blue-400" />
                               )}
                             </p>
@@ -333,37 +395,7 @@ const ChatPage: React.FC = () => {
           )}
         </div>
 
-        {imagePreview && (
-            <div className="relative mt-2 p-2 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">
-              <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="max-h-32 rounded-lg object-contain"
-              />
-              <button
-                  onClick={removeImage}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-              >
-                <X size={16} />
-              </button>
-            </div>
-        )}
-
         <form onSubmit={sendMessage} className="flex gap-3 mt-4">
-          <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageSelect}
-              className="hidden"
-          />
-          <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white px-3 py-2 rounded-lg transition-colors border border-[#2a2a2a]"
-          >
-            <Image size={18} />
-          </button>
           <input
               type="text"
               value={newMessage}
@@ -371,12 +403,21 @@ const ChatPage: React.FC = () => {
               placeholder={`Message ${team?.name || 'Team'}...`}
               className="flex-1 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
           />
+          {isAdmin && (
+              <button
+                  type="button"
+                  onClick={sendBroadcast}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+              >
+                📢 Broadcast
+              </button>
+          )}
           <button
               type="submit"
-              disabled={(!newMessage.trim() && !selectedImage) || uploading}
+              disabled={!newMessage.trim()}
               className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {uploading ? 'Uploading...' : <><Send size={18} /> Send</>}
+            <Send size={18} /> Send
           </button>
         </form>
 

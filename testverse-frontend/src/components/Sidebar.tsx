@@ -1,162 +1,195 @@
-import React from 'react';
-import { 
-  LayoutDashboard, 
-  Briefcase, 
-  CheckSquare, 
-  FileText, 
-  Terminal, 
-  Bug, 
-  MessageSquare, 
-  MessageCircle, 
-  BookOpen, 
-  Trophy, 
-  User, 
-  Zap, 
-  ChevronRight,
-  Layers,
-  FileSpreadsheet
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  LayoutDashboard,
+  ClipboardList,
+  Bug,
+  Users,
+  MessageSquare,
+  Bell,
+  Users2,
+  Rocket,
+  FileText,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  Code2,
+  BookOpen,
+  Search,
+  Award,
+  StickyNote,
+  User,
+  ChevronDown,
+  ChevronRight,
+  Users as TeamIcon
+} from 'lucide-react';
 
 interface SidebarProps {
-  currentPage: string;
-  onNavigate: (page: string) => void;
-  taskCount?: number;
-  bugCount?: number;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
-  currentPage, 
-  onNavigate,
-  taskCount = 6,
-  bugCount = 2
-}) => {
-  const { role } = useAuth();
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { logout, isAdmin } = useAuth();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'projects', label: 'Projects Workspace', icon: Briefcase },
-    { id: 'tasks', label: 'Tasks Management', icon: CheckSquare, badge: taskCount },
-    { 
-      id: 'manual-testing', 
-      label: 'Manual Testing', 
-      icon: FileSpreadsheet,
-      subItems: ['Scenarios & Cases', 'RTM Matrix', 'Summary Reports']
-    },
-    { id: 'automation', label: 'Automation Hub', icon: Terminal },
-    { id: 'bugs', label: 'Bug Tracker', icon: Bug, badge: bugCount, badgeColor: 'bg-rose-500' },
-    { id: 'community', label: 'Community Feed', icon: MessageSquare },
-    { id: 'chat', label: 'Mentor & Peer Chat', icon: MessageCircle, badge: 'Live' },
-    { id: 'notes', label: 'Notes & Resources', icon: BookOpen },
-    { id: 'leaderboard', label: 'Streaks & Rankings', icon: Trophy },
-    { id: 'profile', label: 'My Profile', icon: User }
+  const menuItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/projects', label: 'Projects', icon: ClipboardList },
+    { path: '/tasks', label: 'Tasks', icon: ClipboardList },
+    { path: '/bugs', label: 'Bug Tracker', icon: Bug },
+    { path: '/team', label: 'Team', icon: TeamIcon }, // ✅ Added Team
+    { path: '/community', label: 'Community', icon: Users2 },
+    { path: '/chat', label: 'Chat', icon: MessageSquare },
+    { path: '/automation', label: 'Automation', icon: Code2 },
+    { path: '/manual-testing', label: 'Manual Testing', icon: BookOpen },
+    { path: '/leaderboard', label: 'Leaderboard', icon: Award },
+    { path: '/notes', label: 'Notes', icon: StickyNote },
+    { path: '/search', label: 'Search', icon: Search },
   ];
 
+  // ✅ Add Admin Users page only for admin
+  if (isAdmin) {
+    menuItems.push({ path: '/users', label: 'Users', icon: Users });
+  }
+
+  const isActive = (path: string) => location.pathname === path;
+
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
+    navigate('/login');
+  };
+
+  const handleCancelLogout = () => {
+    setShowLogoutConfirm(false);
+  };
+
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen sticky top-0 text-slate-300 transition-all select-none">
-      
-      {/* Brand Header */}
-      <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/40">
-        <div 
-          onClick={() => onNavigate('dashboard')}
-          className="flex items-center space-x-3 cursor-pointer group"
+      <>
+        {/* Mobile Overlay */}
+        {isOpen && (
+            <div
+                className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                onClick={onClose}
+            />
+        )}
+
+        {/* Sidebar */}
+        <aside
+            className={`
+          fixed top-0 left-0 h-full w-64 bg-[#0a0a0a] border-r border-[#1a1a1a] z-50
+          transform transition-transform duration-300 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:translate-x-0 lg:static lg:z-auto
+          flex flex-col
+        `}
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 group-hover:scale-105 transition-transform">
-            <Zap className="w-5 h-5 text-white fill-white" />
-          </div>
-          <div>
-            <div className="font-extrabold text-lg text-white tracking-tight leading-none group-hover:text-indigo-400 transition-colors">
-              TestVerse<span className="text-emerald-400">.io</span>
+          {/* Logo */}
+          <div className="p-4 border-b border-[#1a1a1a] flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-[#ff6b00] rounded-lg flex items-center justify-center">
+                <Rocket className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-lg font-bold text-white">TestVerse</span>
             </div>
-            <div className="text-[10px] text-slate-500 font-mono tracking-wider uppercase mt-0.5">
-              QA Mentorship Platform
-            </div>
+            <button onClick={onClose} className="lg:hidden text-[#666666] hover:text-white">
+              <X size={20} />
+            </button>
           </div>
-        </div>
-      </div>
 
-      {/* Role Badge Indicator */}
-      <div className="px-4 py-3 bg-slate-950/60 border-b border-slate-800/50 flex items-center justify-between text-xs">
-        <span className="text-slate-400 font-medium">Active Workspace</span>
-        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase tracking-wider ${
-          role === 'MENTOR' 
-            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50' 
-            : 'bg-indigo-950 text-indigo-400 border border-indigo-800/50'
-        }`}>
-          {role} mode
-        </span>
-      </div>
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+              return (
+                  <button
+                      key={item.path}
+                      onClick={() => {
+                        navigate(item.path);
+                        onClose();
+                      }}
+                      className={`
+                  w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors
+                  ${active
+                          ? 'bg-[#ff6b00] text-white'
+                          : 'text-[#666666] hover:bg-[#1a1a1a] hover:text-white'
+                      }
+                `}
+                  >
+                    <Icon size={18} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </button>
+              );
+            })}
+          </nav>
 
-      {/* Navigation List */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentPage === item.id;
+          {/* Bottom Section - Profile & Logout */}
+          <div className="border-t border-[#1a1a1a] p-3 space-y-2">
+            {/* Profile Button */}
+            <button
+                onClick={() => {
+                  navigate('/profile');
+                  onClose();
+                }}
+                className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-[#1a1a1a] transition-colors text-[#666666] hover:text-white"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center">
+                <User size={16} className="text-[#666666]" />
+              </div>
+              <span className="text-sm font-medium">Profile</span>
+            </button>
 
-          return (
-            <div key={item.id}>
-              <button
-                onClick={() => onNavigate(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-medium text-sm transition-all group ${
-                  isActive
-                    ? 'bg-indigo-600/90 text-white shadow-md shadow-indigo-600/20 font-semibold'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <Icon className={`w-4 h-4 transition-colors ${
-                    isActive ? 'text-white' : 'text-slate-500 group-hover:text-indigo-400'
-                  }`} />
-                  <span>{item.label}</span>
-                </div>
+            {/* Logout Button */}
+            <button
+                onClick={handleLogoutClick}
+                className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-[#1a1a1a] transition-colors text-red-500 hover:text-red-400"
+            >
+              <LogOut size={18} />
+              <span className="text-sm font-medium">Logout</span>
+            </button>
+          </div>
+        </aside>
 
-                <div className="flex items-center space-x-1.5">
-                  {item.badge !== undefined && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold text-white ${
-                      item.badgeColor || 'bg-indigo-500'
-                    }`}>
-                      {item.badge}
-                    </span>
-                  )}
-                  {item.subItems && (
-                    <ChevronRight className={`w-3.5 h-3.5 text-slate-500 transition-transform ${
-                      isActive ? 'rotate-90 text-white' : ''
-                    }`} />
-                  )}
-                </div>
-              </button>
-
-              {/* Sub-items if active */}
-              {item.subItems && isActive && (
-                <div className="ml-8 mt-1 space-y-1 border-l border-slate-800 pl-3 py-1">
-                  {item.subItems.map((sub, idx) => (
-                    <div
-                      key={idx}
-                      className="text-xs text-slate-400 hover:text-indigo-400 cursor-pointer py-1 transition-colors"
+        {/* Logout Confirmation Modal */}
+        {showLogoutConfirm && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+              <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-6 max-w-md w-full mx-4">
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                    <LogOut size={32} className="text-red-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">Confirm Logout</h3>
+                  <p className="text-[#666666] text-sm mb-6">
+                    Are you sure you want to logout? You will need to login again to access your account.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                        onClick={handleCancelLogout}
+                        className="flex-1 px-4 py-2 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white rounded-lg transition-colors border border-[#2a2a2a]"
                     >
-                      • {sub}
-                    </div>
-                  ))}
+                      Cancel
+                    </button>
+                    <button
+                        onClick={handleConfirmLogout}
+                        className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                    >
+                      Yes, Logout
+                    </button>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Footer Banner */}
-      <div className="p-4 border-t border-slate-800/80 bg-slate-950/40">
-        <div className="bg-gradient-to-r from-indigo-950/70 to-slate-900 border border-indigo-800/40 rounded-xl p-3 text-xs">
-          <div className="flex items-center space-x-2 text-indigo-400 font-bold mb-1">
-            <Layers className="w-4 h-4" />
-            <span>Need QA Mentorship?</span>
-          </div>
-          <p className="text-slate-400 text-[11px] leading-relaxed">
-            Schedule a 1-on-1 code review session with Senior QA Architects.
-          </p>
-        </div>
-      </div>
-
-    </aside>
+        )}
+      </>
   );
 };

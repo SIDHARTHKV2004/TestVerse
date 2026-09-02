@@ -10,7 +10,7 @@ import { fetchTasks, createTask, deleteTask, updateTask } from '../services/api'
 interface Task {
     id: number;
     title: string;
-    description?: string;  // ← Made optional (add ?)
+    description?: string;
     priority: 'Low' | 'Medium' | 'High' | 'Critical';
     status: 'To Do' | 'Planning' | 'In Progress' | 'Review' | 'Done';
     dueDate: string;
@@ -198,6 +198,12 @@ const TasksPage: React.FC = () => {
     const handleCreateTask = async (formEvent: React.FormEvent): Promise<void> => {
         formEvent.preventDefault();
 
+        // Validate form
+        if (!formData.title.trim()) {
+            alert('❌ Task title is required!');
+            return;
+        }
+
         if (formData.dueDate && !validateDate(formData.dueDate)) {
             setDateError('❌ Due date cannot be in the past. Please select today or a future date.');
             return;
@@ -206,25 +212,29 @@ const TasksPage: React.FC = () => {
 
         try {
             const taskData = {
-                title: formData.title,
-                description: formData.description || '',
+                title: formData.title.trim(),
+                description: formData.description?.trim() || '',
                 priority: formData.priority,
                 status: 'To Do',
                 dueDate: formData.dueDate || getTodayDate(),
-                moduleName: formData.moduleName || '',
-                assignedStudentId: formData.assignedStudentId ? parseInt(formData.assignedStudentId) : undefined,
-                projectId: formData.projectId ? parseInt(formData.projectId) : undefined,
-                instructions: formData.instructions || '',
+                moduleName: formData.moduleName?.trim() || '',
+                assignedStudentId: formData.assignedStudentId ? parseInt(formData.assignedStudentId) : null,
+                projectId: formData.projectId ? parseInt(formData.projectId) : null,
+                instructions: formData.instructions?.trim() || '',
             };
 
+            console.log('📤 Sending task data:', taskData);
             const newTask = await createTask(taskData);
+            console.log('✅ Task created successfully:', newTask);
+
             setTasks([newTask, ...tasks]);
             setShowModal(false);
             resetForm();
             alert('✅ Task created successfully!');
         } catch (error: any) {
-            console.error('Error creating task:', error);
-            alert('❌ Failed to create task: ' + (error.message || 'Please try again.'));
+            console.error('❌ Error creating task:', error);
+            const errorMessage = error.message || 'Please check: 1) Backend is running on port 8080, 2) You are logged in, 3) You have admin/developer/tester role';
+            alert(`❌ Failed to create task: ${errorMessage}`);
         }
     };
 
@@ -529,7 +539,8 @@ const TasksPage: React.FC = () => {
                                                             Edit
                                                         </button>
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id).catch(console.error); }}                                                            className="text-[10px] px-2 py-0.5 rounded text-[#666666] hover:text-red-500 hover:bg-[#1a1a1a] transition-colors flex items-center gap-1"
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id).catch(console.error); }}
+                                                            className="text-[10px] px-2 py-0.5 rounded text-[#666666] hover:text-red-500 hover:bg-[#1a1a1a] transition-colors flex items-center gap-1"
                                                         >
                                                             <Trash2 size={12} />
                                                             Delete

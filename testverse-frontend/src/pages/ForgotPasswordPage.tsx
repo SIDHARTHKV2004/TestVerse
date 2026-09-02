@@ -1,111 +1,105 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Rocket, Mail, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 
-interface ForgotPasswordPageProps {
-  onNavigate?: (page: string) => void;
-}
-
-const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigate }) => {
-  const [email, setEmail] = useState('');
+const ForgotPasswordPage: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [email, setEmail] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setLoading(true);
+    setError(null);
+    setSuccess(false);
 
     try {
-      // This is a placeholder - implement actual password reset API
-      // const response = await fetch('http://localhost:8080/auth/forgot-password', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email }),
-      // });
+      if (!email.trim()) {
+        throw new Error('Email is required');
+      }
+
+      // TODO: Call backend API to send reset password email
+      // For now, simulate success
+      console.log('📤 Forgot password request for:', email);
 
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // For demo purposes, always show success
       setSuccess(true);
-    } catch (error) {
-      setError('Failed to send reset email. Please try again.');
+      setError(null);
+
+    } catch (err: any) {
+      console.error('❌ Forgot password error:', err);
+      setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-        <div className="flex items-center justify-center min-h-screen bg-[#000000]">
-          <div className="w-full max-w-sm p-6 bg-[#111111] border border-[#1a1a1a] rounded-xl shadow-lg">
-            <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2">Check Your Email</h2>
-              <p className="text-[#666666] text-sm mb-4">
-                We've sent password reset instructions to <strong className="text-white">{email}</strong>
-              </p>
-              <button
-                  onClick={() => onNavigate?.('login')}
-                  className="text-[#ff6b00] hover:text-[#ff8c38] transition-colors text-sm"
-              >
-                Back to Sign In
-              </button>
-            </div>
-          </div>
-        </div>
-    );
-  }
-
   return (
-      <div className="flex items-center justify-center min-h-screen bg-[#000000] p-4">
-        <div className="w-full max-w-sm p-6 bg-[#111111] border border-[#1a1a1a] rounded-xl shadow-lg">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-white">Forgot Password</h2>
-            <p className="text-sm text-[#666666] mt-1">
-              Enter your email to receive reset instructions
-            </p>
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+        <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-8 max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-[#ff6b00] rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Rocket className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white">Forgot Password</h1>
+            <p className="text-[#666666] text-sm mt-1">We'll send you a reset link</p>
           </div>
 
           {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg p-3 mb-4 text-sm">
-                {error}
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-start gap-2">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+          )}
+
+          {success && (
+              <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm flex items-start gap-2">
+                <CheckCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <div>
+                  <p>✅ Password reset link sent!</p>
+                  <p className="text-xs mt-1">Check your email for the reset link.</p>
+                </div>
               </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-[#666666] mb-1">Email Address</label>
-              <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
-                  placeholder="Enter your email"
-              />
+              <label className="block text-sm text-[#666666] mb-1">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-[#444444]" size={18} />
+                <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg pl-10 pr-4 py-2 text-white placeholder-[#444444] focus:outline-none focus:border-[#ff6b00]"
+                    placeholder="you@example.com"
+                    required
+                    disabled={loading || success}
+                />
+              </div>
             </div>
 
             <button
                 type="submit"
-                disabled={loading}
-                className="w-full bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading || success}
+                className="w-full bg-[#ff6b00] hover:bg-[#cc5500] text-white py-2 rounded-lg transition-colors disabled:opacity-50"
             >
-              {loading ? 'Sending...' : 'Send Reset Instructions'}
+              {loading ? 'Sending...' : success ? '✅ Sent!' : 'Send Reset Link'}
             </button>
           </form>
 
           <div className="mt-4 text-center">
-            <button
-                onClick={() => onNavigate?.('login')}
-                className="text-sm text-[#666666] hover:text-white transition-colors"
+            <Link
+                to="/login"
+                className="text-sm text-[#666666] hover:text-[#ff6b00] transition-colors inline-flex items-center gap-1"
             >
-              ← Back to Sign In
-            </button>
+              <ArrowLeft size={14} />
+              Back to Login
+            </Link>
           </div>
         </div>
       </div>

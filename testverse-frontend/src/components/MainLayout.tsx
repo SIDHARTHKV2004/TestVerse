@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     ClipboardList,
@@ -10,12 +11,14 @@ import {
     Rocket,
     ChevronLeft,
     ChevronRight,
-    Bell,
     Search,
     Menu,
     Plus,
     UserCog,
-    Users as UsersIcon
+    Users as UsersIcon,
+    Trophy,
+    BookOpen,
+    FileSpreadsheet
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
@@ -27,24 +30,34 @@ interface MainLayoutProps {
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNavigate }) => {
     const { user, logout, isAdmin } = useAuth();
+    const navigate = useNavigate();
     const [collapsed, setCollapsed] = useState(false);
 
     const allMenuItems = [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'tasks', label: 'Tasks', icon: ClipboardList },
-        { id: 'projects', label: 'Projects', icon: FolderKanban },
-        { id: 'bugs', label: 'Bug Tracker', icon: Bug },
-        { id: 'automation', label: 'Automation Hub', icon: Rocket },
-        { id: 'community', label: 'Community', icon: Users },
-        { id: 'chat', label: 'Chat', icon: MessageSquare },
-        { id: 'team', label: 'My Team', icon: UsersIcon, roles: ['TESTER', 'DEVELOPER'] },
-        { id: 'users', label: 'Users', icon: UserCog, roles: ['ADMIN'] },
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+        { id: 'tasks', label: 'Tasks', icon: ClipboardList, path: '/tasks' },
+        { id: 'projects', label: 'Modules', icon: FolderKanban, path: '/projects' },
+        { id: 'bugs', label: 'Bug Tracker', icon: Bug, path: '/bugs' },
+        { id: 'manual-testing', label: 'Manual Testing', icon: FileSpreadsheet, path: '/manual-testing' },
+        { id: 'automation', label: 'Automation Hub', icon: Rocket, path: '/automation' },
+        { id: 'community', label: 'Community', icon: Users, path: '/community' },
+        { id: 'chat', label: 'Chat', icon: MessageSquare, path: '/chat' },
+        { id: 'notes', label: 'Notes & Resources', icon: BookOpen, path: '/notes' },
+        { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, path: '/leaderboard' },
+        { id: 'team', label: 'My Team', icon: UsersIcon, roles: ['TESTER', 'DEVELOPER'], path: '/team' },
+        { id: 'users', label: 'Users', icon: UserCog, roles: ['ADMIN'], path: '/users' },
     ];
 
     const menuItems = allMenuItems.filter(item => {
         if (!item.roles) return true;
         return item.roles.includes(user?.role || '');
     });
+
+    // ✅ Navigation handler - updates sidebar AND navigates
+    const handleNavigation = (page: string, path: string) => {
+        onNavigate(page);  // Update sidebar highlight
+        navigate(path);    // Navigate to the page
+    };
 
     return (
         <div className="flex h-screen bg-black text-white">
@@ -81,7 +94,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNaviga
                         return (
                             <button
                                 key={item.id}
-                                onClick={() => onNavigate(item.id)}
+                                onClick={() => handleNavigation(item.id, item.path)}
                                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
                                     isActive
                                         ? 'bg-[#ff6b00] text-white'
@@ -98,7 +111,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNaviga
                 {/* User Profile */}
                 <div className="border-t border-[#1a1a1a] p-3">
                     <button
-                        onClick={() => onNavigate('profile')}
+                        onClick={() => handleNavigation('profile', '/profile')}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors"
                     >
                         <div className="w-8 h-8 rounded-full bg-[#ff6b00] flex items-center justify-center text-white font-bold text-sm">
@@ -106,8 +119,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNaviga
                         </div>
                         {!collapsed && (
                             <div className="flex-1 text-left">
-                                <div className="text-sm font-medium text-white">{user?.name}</div>
-                                <div className="text-xs text-[#666666] capitalize">{user?.role?.toLowerCase()}</div>
+                                <div className="text-sm font-medium text-white">{user?.name || 'User'}</div>
+                                <div className="text-xs text-[#666666] capitalize">{user?.role?.toLowerCase() || 'guest'}</div>
                             </div>
                         )}
                     </button>
@@ -126,14 +139,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNaviga
                             <Search size={18} className="text-[#666666]" />
                             <input
                                 type="text"
-                                placeholder="Search tasks, projects..."
+                                placeholder="Search tasks, modules..."
                                 className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-3 py-1.5 text-sm text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00] w-full"
                             />
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
                         <NotificationBell />
-                        <button className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors">
+                        <button
+                            onClick={() => handleNavigation('tasks', '/tasks')}
+                            className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors"
+                        >
                             <Plus size={16} />
                             Add Task
                         </button>

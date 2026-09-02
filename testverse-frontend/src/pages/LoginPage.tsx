@@ -1,106 +1,136 @@
 import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Rocket, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
-interface LoginPageProps {
-  onNavigate?: (page: string) => void;
-}
-
-export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
+const LoginPage: React.FC = () => {
+  const navigate = useNavigate();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
+    setLoading(true);
     setError(null);
+
     try {
-      await login(email, password);
-    } catch (err: any) {
-      if (err.message?.includes('PENDING') || err.message?.includes('pending')) {
-        setError('⏳ Your account is pending approval. Please wait for the admin to approve your request.');
-      } else {
-        setError('Invalid credentials. Please try again.');
+      if (!formData.email.trim()) {
+        throw new Error('Email is required');
       }
+      if (!formData.password.trim()) {
+        throw new Error('Password is required');
+      }
+
+      await login(formData.email, formData.password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('❌ Login error:', err);
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-      <div className="flex items-center justify-center min-h-screen bg-[#000000]">
-        <div className="w-full max-w-sm p-6 bg-[#111111] border border-[#1a1a1a] rounded-xl shadow-lg">
-          <div className="text-center mb-6">
-            <div className="w-12 h-12 bg-[#ff6b00] rounded-lg flex items-center justify-center mx-auto mb-3">
-              <span className="text-xl font-bold text-white">TV</span>
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+        <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-8 max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-[#ff6b00] rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Rocket className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white">Welcome Back</h2>
-            <p className="text-sm text-[#666666] mt-1">Sign in to your TestVerse account</p>
+            <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
+            <p className="text-[#666666] text-sm mt-1">Login to your TestVerse account</p>
           </div>
 
           {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg p-3 mb-4 text-sm">
-                {error}
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-start gap-2">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
               </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm text-[#666666] mb-1">Email</label>
-              <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00] transition-colors"
-                  placeholder="Enter your email"
-              />
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-[#444444]" size={18} />
+                <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg pl-10 pr-4 py-2 text-white placeholder-[#444444] focus:outline-none focus:border-[#ff6b00]"
+                    placeholder="you@example.com"
+                    required
+                    disabled={loading}
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-sm text-[#666666] mb-1">Password</label>
-              <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00] transition-colors"
-                  placeholder="Enter your password"
-              />
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[#444444]" size={18} />
+                <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg pl-10 pr-10 py-2 text-white placeholder-[#444444] focus:outline-none focus:border-[#ff6b00]"
+                    placeholder="Enter your password"
+                    required
+                    disabled={loading}
+                />
+                <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#444444] hover:text-[#666666] transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <Link
+                  to="/forgot-password"
+                  className="text-sm text-[#666666] hover:text-[#ff6b00] transition-colors"
+              >
+                Forgot Password?
+              </Link>
             </div>
 
             <button
                 type="submit"
-                disabled={submitting}
-                className="w-full bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
+                className="w-full bg-[#ff6b00] hover:bg-[#cc5500] text-white py-2 rounded-lg transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
-          <div className="mt-4 flex justify-between text-sm">
-            <button
-                onClick={() => onNavigate?.('register')}
-                className="text-[#ff6b00] hover:text-[#ff8c38] transition-colors"
-            >
-              Create Account
-            </button>
-            <button
-                onClick={() => onNavigate?.('forgot')}
-                className="text-[#666666] hover:text-white transition-colors"
-            >
-              Forgot Password?
-            </button>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-[#666666]">
+              Don't have an account?{' '}
+              <Link
+                  to="/register"
+                  className="text-[#ff6b00] hover:underline font-medium hover:text-[#ff8c38] transition-colors"
+              >
+                Create Account
+              </Link>
+            </p>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-[#1a1a1a]">
-            <p className="text-xs text-[#444444] text-center">Demo Accounts:</p>
-            <div className="mt-2 space-y-1 text-center">
-              <p className="text-xs text-[#666666]">Admin: admin@testverse.com / admin123</p>
-              <p className="text-xs text-[#666666]">Student: tester@test.com / tester123</p>
-            </div>
+          <div className="mt-4 p-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg">
+            <p className="text-xs text-[#666666] text-center">
+              🔒 Your account needs <strong className="text-white">admin approval</strong> after registration.
+              <br />
+              Contact your admin to activate your account.
+            </p>
           </div>
         </div>
       </div>

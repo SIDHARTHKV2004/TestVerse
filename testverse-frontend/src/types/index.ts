@@ -4,259 +4,271 @@ export interface User {
   username: string;
   email: string;
   name: string;
-  role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
-  avatarUrl?: string;
+  role: 'ADMIN' | 'DEVELOPER' | 'TESTER' | 'STUDENT';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
   bio?: string;
   points?: number;
   streakDays?: number;
+  avatarUrl?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 // Task Types
+export type TaskStatus =
+    | 'Planning'
+    | 'To Do'
+    | 'In Progress'
+    | 'Review'
+    | 'Done'
+    | 'Completed'
+    | 'Not Started'
+    | 'Accepted'
+    | 'Waiting For Review'
+    | 'Need Help'
+    | 'Changes Requested';
+
+export type Priority = 'Low' | 'Medium' | 'High' | 'Critical' | 'Urgent';
+
+export interface Attachment {
+  id: number;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  fileType: string;
+  uploadedAt: string;
+  url?: string;
+  name?: string;
+  size?: number;
+}
+
+export interface Comment {
+  id: number;
+  userId: number;
+  userName: string;
+  content: string;
+  createdAt: string;
+  author?: string;
+}
+
 export interface Task {
   id: number;
   title: string;
-  description?: string;
-  priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  status: 'To Do' | 'Planning' | 'In Progress' | 'Review' | 'Done';
-  dueDate?: string;
-  projectId?: number;
-  mentorId?: number;
-  assignedStudentId?: number;
-  moduleName?: string;
-  instructions?: string;
-  submissionNotes?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Project Types
-export interface Project {
-  id: number;
-  name: string;
-  description?: string;
-  category: string;
-  techStack?: string;
+  description: string;
+  status: TaskStatus | string;
+  priority: Priority | string;
+  module: string;
+  projectName: string;
+  assignedTo: number;
+  assignedToName?: string;
+  createdBy: number;
+  createdByName?: string;
+  createdAt: string;
+  updatedAt: string;
+  dueDate: string;
+  estimatedHours?: number;
+  actualHours?: number;
   progress?: number;
-  mentorId?: number;
-  createdAt?: string;
-  updatedAt?: string;
+  tags?: string[];
+  attachments?: Attachment[];
+  comments?: Comment[];
+  mentorName?: string;
+  submissionNotes?: string;
+  instructions?: string;
 }
 
-// Bug Report Types
+// Bug Types
+export type BugSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type BugStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'REJECTED' | 'VERIFIED';
+
 export interface BugReport {
   id: number;
   title: string;
   description: string;
-  status: 'Open' | 'In Progress' | 'Resolved' | 'Closed';
-  priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  severity: 'Minor' | 'Major' | 'Critical' | 'Blocker';
+  severity: BugSeverity | string;
+  status: BugStatus | string;
+  priority: Priority | string;
+  reporterId: number;
+  reporterName?: string;
+  assignedTo?: number;
+  assignedToName?: string;
+  projectName: string;
+  projectId?: number;
   stepsToReproduce?: string;
   expectedResult?: string;
   actualResult?: string;
-  assigneeId?: number;
-  reporterId: number;
-  projectId?: number;
   screenshotUrl?: string;
-  videoUrl?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Community Post Types
-export interface CommunityPost {
-  id: number;
-  title: string;
-  content: string;
-  authorId: number;
-  tags?: string[];
-  codeSnippet?: string;
-  codeLanguage?: string;
-  linkUrl?: string;
-  images?: string[];
-  isPinned?: boolean;
-  likesCount?: number;
-  commentsCount?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Community Comment Types
-export interface CommunityComment {
-  id: number;
-  content: string;
-  authorId: number;
-  postId: number;
-  parentId?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Message Types
-export interface Message {
-  id: number;
-  content: string;
-  senderId: number;
-  recipientId: number;
-  isSeen?: boolean;
-  createdAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
 }
 
 // Notification Types
 export interface Notification {
   id: number;
-  title: string;
-  message: string;
   userId: number;
-  type?: string;
-  isRead?: boolean;
-  createdAt?: string;
-}
-
-// Submission Types
-export interface Submission {
-  id: number;
   title: string;
-  studentId: number;
-  taskId?: number;
-  projectId?: number;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'In Review';
-  reportUrl?: string;
-  zipFileUrl?: string;
-  zipFileName?: string;
-  fileSize?: string;
-  documentType?: string;
-  framework?: string;
-  duration?: string;
-  totalTests?: number;
-  passedTests?: number;
-  failedTests?: number;
-  mentorFeedback?: string;
-  submittedAt?: string;
-}
-
-// Auth Types
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  token: string;
-  user: User;
-}
-
-export interface RegisterRequest {
-  username: string;
-  email: string;
-  password: string;
-  name: string;
-  role?: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
-}
-
-export interface RegisterResponse {
   message: string;
-  userId?: number;
+  type: 'TASK' | 'BUG' | 'MENTION' | 'SYSTEM';
+  isRead: boolean;
+  createdAt: string;
+  link?: string;
 }
 
-// API Response Types
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
+// Community Types
+export interface CommunityPost {
+  id: number;
+  userId: number;
+  userName: string;
+  userAvatar?: string;
+  title: string;
+  content: string;
+  tags: string[];
+  likes: number;
+  comments: Comment[];
+  createdAt: string;
+  updatedAt: string;
+  codeSnippet?: string;
 }
 
-// Dashboard Stats Types
-export interface DashboardStats {
-  totalTasks: number;
-  completedTasks: number;
-  inProgressTasks: number;
-  totalProjects: number;
-  activeProjects: number;
-  totalBugs: number;
-  openBugs: number;
-  resolvedBugs: number;
-  notifications: number;
-  communityPosts: number;
+// Chat Types
+export interface ChatMessage {
+  id: number;
+  senderId: number;
+  senderName: string;
+  receiverId: number;
+  receiverName?: string;
+  content: string;
+  type: 'TEXT' | 'IMAGE' | 'CODE';
+  isRead: boolean;
+  createdAt: string;
+}
+
+// Project/Module Types
+export interface Project {
+  id: number;
+  name: string;
+  description: string;
+  status: 'Active' | 'Completed' | 'On Hold' | 'Planning';
+  category: string;
+  techStack: string[];
+  progress: number;
+  teamSize?: number;
+  createdBy: number;
+  createdByName?: string;
+  createdAt: string;
+  updatedAt: string;
+  tasksCompleted?: number;
+  totalTasks?: number;
+  dueDate?: string;
+}
+
+// Leaderboard Types
+export interface LeaderboardEntry {
+  id: number;
+  userId: number;
+  userName: string;
+  userAvatar?: string;
+  role: string;
   points: number;
   streakDays: number;
+  tasksCompleted: number;
+  bugsResolved: number;
+  bugsLogged?: number;
+  automationSubmissions?: number;
+  streak?: number;
+  rank: number;
+  user?: {
+    id: number;
+    name: string;
+    avatar?: string;
+    role: string;
+  };
 }
 
-// Filter Types
-export interface TaskFilter {
-  status?: Task['status'];
-  priority?: Task['priority'];
-  search?: string;
-  projectId?: number;
-  assignedToMe?: boolean;
-}
-
-export interface BugFilter {
-  status?: BugReport['status'];
-  priority?: BugReport['priority'];
-  severity?: BugReport['severity'];
-  search?: string;
-  projectId?: number;
-  assignedToMe?: boolean;
-}
-
-// Component Props Types
-export interface SidebarItem {
-  id: string;
-  label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  active?: boolean;
-  onClick?: () => void;
-  badge?: number;
-}
-
-export interface NavItem {
-  id: string;
-  label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  path?: string;
-  children?: NavItem[];
-}
-
-// Modal Types
-export interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
-}
-
-// Form Types
-export interface TaskFormData {
-  title: string;
-  description?: string;
-  priority: Task['priority'];
-  status: Task['status'];
-  dueDate?: string;
-  projectId?: number;
-  assignedStudentId?: number;
-  moduleName?: string;
-  instructions?: string;
-}
-
-export interface BugFormData {
+// Testing Types
+export interface TestScenario {
+  id: number;
   title: string;
   description: string;
-  priority: BugReport['priority'];
-  severity: BugReport['severity'];
-  status: BugReport['status'];
-  stepsToReproduce?: string;
-  expectedResult?: string;
+  steps: string[];
+  expectedResult: string;
   actualResult?: string;
-  projectId?: number;
+  status: 'PENDING' | 'PASSED' | 'FAILED' | 'BLOCKED' | 'Ready';
+  module: string;
+  createdBy: number;
+  createdAt: string;
+  updatedAt: string;
+  testCases?: TestCase[];
+  scenarioCode?: string;
+  featureName?: string;
+  requirementId?: string;
 }
 
-export interface ProjectFormData {
-  name: string;
+export interface TestCase {
+  id: number;
+  title: string;
+  description: string;
+  preconditions: string;
+  steps: string[];
+  expectedResults: string[];
+  actualResults?: string[];
+  status: 'PENDING' | 'PASSED' | 'FAILED' | 'BLOCKED' | 'Ready';
+  priority: Priority | string;
+  module: string;
+  createdBy: number;
+  executedBy?: number;
+  createdAt: string;
+  executedAt?: string;
+}
+
+export interface RTMEntry {
+  id: number;
+  requirementId: string;
+  requirementName: string;
+  testCaseId: number;
+  testCaseTitle: string;
+  module: string;
+  status: 'COVERED' | 'NOT_COVERED' | 'PARTIAL';
   description?: string;
+  scenarioId?: number;
+  testCaseIds?: number[];
+}
+
+// Notes Types
+export interface NoteResource {
+  id: number;
+  title: string;
+  content: string;
+  tags: string[];
   category: string;
-  techStack?: string;
+  userId: number;
+  isPublic: boolean;
+  isBookmarked?: boolean;
+  type?: 'note' | 'resource' | 'file';
+  description?: string;
+  uploadedBy?: string;
+  url?: string;
+  fileSize?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Auth Context Type
+export interface AuthContextType {
+  user: User | null;
+  token: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (userData: any) => Promise<void>;
+  logout: () => void;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  isDeveloper: boolean;
+  isTester: boolean;
+  isStudent: boolean;
+  isPending: boolean;
+  isApproved: boolean;
+  isRejected: boolean;
+  hasRole: (roles: string[]) => boolean;
+  role?: string;
 }

@@ -66,9 +66,9 @@ export interface BugReport {
   status: string;
   priority: string;
   severity: string;
-  stepsToReproduce: string;
-  expectedResult: string;
-  actualResult: string;
+  stepsToReproduce?: string;
+  expectedResult?: string;
+  actualResult?: string;
   reporterId?: number;
   reporterName?: string;
   assigneeName?: string;
@@ -78,10 +78,60 @@ export interface BugReport {
   updatedAt?: string;
 }
 
+// ==================== Helper: Get Token ====================
+const getToken = (): string | null => {
+  return localStorage.getItem('token');
+};
+
+// ==================== Helper: Get Headers ====================
+const getHeaders = (): HeadersInit => {
+  const token = getToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+};
+
+// ==================== Helper: Handle Response ====================
+const handleResponse = async (response: Response): Promise<any> => {
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      console.error('❌ Authentication error - Redirecting to login');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+
+    let errorMessage = `API call failed: ${response.status}`;
+    try {
+      const errorData = await response.text();
+      if (errorData) {
+        errorMessage = errorData;
+      }
+    } catch (e) {
+      // Ignore
+    }
+    throw new Error(errorMessage);
+  }
+
+  const contentLength = response.headers.get('content-length');
+  if (contentLength === '0') {
+    return null;
+  }
+
+  try {
+    return await response.json();
+  } catch (e) {
+    return await response.text();
+  }
+};
+
 // ==================== Auth API ====================
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
@@ -92,27 +142,55 @@ export const authApi = {
       throw new Error(error || 'Login failed');
     }
 
-    return response.json();
+    const data = await response.json();
+
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify({
+        email: data.email,
+        name: data.name,
+        role: data.role,
+      }));
+    }
+
+    return data;
   },
 
   register: async (userData: any): Promise<any> => {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    console.log('📤 Registering user:', userData);
+
+    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData),
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Registration failed');
+      let errorMessage = 'Registration failed';
+      try {
+        const errorData = await response.text();
+        if (errorData) {
+          errorMessage = errorData;
+        }
+      } catch (e) {
+        // Ignore
+      }
+      throw new Error(errorMessage);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('📥 Registration response:', data);
+
+    // ⚠️ IMPORTANT: DON'T set token or user here - user needs admin approval
+    // Users with PENDING status cannot login until approved
+
+    return data;
   },
 
   logout: (): void => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    window.location.href = '/login';
   },
 
   getToken: (): string | null => {
@@ -131,266 +209,319 @@ export const authApi = {
 
 // ==================== Task API ====================
 export const fetchTasks = async (): Promise<Task[]> => {
-  const token = authApi.getToken();
-  const response = await fetch(`${API_BASE_URL}/api/tasks`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  if (!response.ok) throw new Error('Failed to fetch tasks');
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+      headers: getHeaders(),
+    });
+    return handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Fetch tasks error:', error);
+    throw new Error(error.message || 'Failed to fetch tasks');
+  }
 };
 
 export const createTask = async (taskData: any): Promise<Task> => {
-  const token = authApi.getToken();
-  const response = await fetch(`${API_BASE_URL}/api/tasks`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(taskData),
-  });
+  try {
+    const token = getToken();
+    console.log('🔑 Token present:', !!token);
+    console.log('📤 Creating task with data:', taskData);
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to create task');
+    const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(taskData),
+    });
+
+    console.log('📥 Response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        throw new Error('Session expired. Please login again.');
+      }
+
+      throw new Error(errorText || `Failed to create task (Status: ${response.status})`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Task created:', data);
+    return data;
+  } catch (error: any) {
+    console.error('❌ Create task error:', error);
+    throw new Error(error.message || 'Network error. Please check if backend is running on port 8080.');
   }
-
-  return response.json();
 };
 
 export const updateTask = async (id: number, taskData: any): Promise<Task> => {
-  const token = authApi.getToken();
-  const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(taskData),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to update task');
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(taskData),
+    });
+    return handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Update task error:', error);
+    throw new Error(error.message || 'Failed to update task');
   }
-
-  return response.json();
 };
 
 export const deleteTask = async (id: number): Promise<void> => {
-  const token = authApi.getToken();
-  const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to delete task');
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    await handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Delete task error:', error);
+    throw new Error(error.message || 'Failed to delete task');
   }
 };
 
 // ==================== Project API ====================
 export const fetchProjects = async (): Promise<Project[]> => {
-  const token = authApi.getToken();
   const response = await fetch(`${API_BASE_URL}/api/projects`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: getHeaders(),
   });
-  if (!response.ok) throw new Error('Failed to fetch projects');
-  return response.json();
+  return handleResponse(response);
 };
 
 export const createProject = async (projectData: any): Promise<Project> => {
-  const token = authApi.getToken();
   const response = await fetch(`${API_BASE_URL}/api/projects`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: getHeaders(),
     body: JSON.stringify(projectData),
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to create project');
-  }
-
-  return response.json();
+  return handleResponse(response);
 };
 
 export const updateProject = async (id: number, projectData: any): Promise<Project> => {
-  const token = authApi.getToken();
   const response = await fetch(`${API_BASE_URL}/api/projects/${id}`, {
     method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: getHeaders(),
     body: JSON.stringify(projectData),
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to update project');
-  }
-
-  return response.json();
+  return handleResponse(response);
 };
 
 export const deleteProject = async (id: number): Promise<void> => {
-  const token = authApi.getToken();
   const response = await fetch(`${API_BASE_URL}/api/projects/${id}`, {
     method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: getHeaders(),
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to delete project');
-  }
+  await handleResponse(response);
 };
 
 // ==================== Bug API ====================
 export const fetchBugs = async (): Promise<BugReport[]> => {
-  const token = authApi.getToken();
-  const response = await fetch(`${API_BASE_URL}/api/bugs`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  if (!response.ok) throw new Error('Failed to fetch bugs');
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bugs`, {
+      headers: getHeaders(),
+    });
+    return handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Fetch bugs error:', error);
+    throw new Error(error.message || 'Failed to fetch bugs');
+  }
 };
 
 export const createBug = async (bugData: any): Promise<BugReport> => {
-  const token = authApi.getToken();
-  const response = await fetch(`${API_BASE_URL}/api/bugs`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(bugData),
-  });
+  try {
+    const token = getToken();
+    console.log('🔑 Token present:', !!token);
+    console.log('📤 Creating bug with data:', bugData);
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to create bug');
+    const response = await fetch(`${API_BASE_URL}/api/bugs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(bugData),
+    });
+
+    console.log('📥 Response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        throw new Error('Session expired. Please login again.');
+      }
+
+      throw new Error(errorText || `Failed to create bug (Status: ${response.status})`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Bug created:', data);
+    return data;
+  } catch (error: any) {
+    console.error('❌ Create bug error:', error);
+    throw new Error(error.message || 'Network error. Please check if backend is running on port 8080.');
   }
+};
 
-  return response.json();
+export const updateBug = async (id: number, bugData: any): Promise<BugReport> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bugs/${id}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify(bugData),
+    });
+    return handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Update bug error:', error);
+    throw new Error(error.message || 'Failed to update bug');
+  }
 };
 
 export const updateBugStatus = async (id: number, status: string): Promise<BugReport> => {
-  const token = authApi.getToken();
-  const response = await fetch(`${API_BASE_URL}/api/bugs/${id}/status`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ status }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to update bug status');
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bugs/${id}/status`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    return handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Update bug status error:', error);
+    throw new Error(error.message || 'Failed to update bug status');
   }
-
-  return response.json();
 };
 
 export const deleteBug = async (id: number): Promise<void> => {
-  const token = authApi.getToken();
-  const response = await fetch(`${API_BASE_URL}/api/bugs/${id}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || 'Failed to delete bug');
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/bugs/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    await handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Delete bug error:', error);
+    throw new Error(error.message || 'Failed to delete bug');
   }
 };
 
-// ==================== Protected API ====================
+// ==================== Team API ====================
+export const fetchTeams = async (): Promise<any[]> => {
+  const response = await fetch(`${API_BASE_URL}/api/teams`, {
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+export const createTeam = async (teamData: any): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/api/teams`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(teamData),
+  });
+  return handleResponse(response);
+};
+
+// ==================== Notification API ====================
+export const fetchNotifications = async (): Promise<any[]> => {
+  const response = await fetch(`${API_BASE_URL}/api/notifications`, {
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+export const markNotificationAsRead = async (id: number): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
+    method: 'PUT',
+    headers: getHeaders(),
+  });
+  await handleResponse(response);
+};
+
+// ==================== Community API ====================
+export const fetchCommunityPosts = async (): Promise<any[]> => {
+  const response = await fetch(`${API_BASE_URL}/api/community/posts`, {
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+export const createCommunityPost = async (postData: any): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/api/community/posts`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(postData),
+  });
+  return handleResponse(response);
+};
+
+// ==================== Protected API (Generic) ====================
 export const protectedApi = {
   get: async (endpoint: string): Promise<any> => {
-    const token = authApi.getToken();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
     });
-    if (!response.ok) throw new Error(`API call failed: ${response.status}`);
-    return response.json();
+    return handleResponse(response);
   },
 
   post: async (endpoint: string, data: any): Promise<any> => {
-    const token = authApi.getToken();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error(`API call failed: ${response.status}`);
-    return response.json();
+    return handleResponse(response);
   },
 
   put: async (endpoint: string, data: any): Promise<any> => {
-    const token = authApi.getToken();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error(`API call failed: ${response.status}`);
-    return response.json();
+    return handleResponse(response);
   },
 
   delete: async (endpoint: string): Promise<any> => {
-    const token = authApi.getToken();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
     });
-    if (!response.ok) throw new Error(`API call failed: ${response.status}`);
-    return response.json();
+    return handleResponse(response);
   },
 };
 
-// Default export for convenience
-export default {
+// ==================== Debug Helper ====================
+export const debugAuth = (): void => {
+  console.log('🔍 Debug Auth:');
+  console.log('  Token:', localStorage.getItem('token')?.substring(0, 30) + '...' || '❌ No token');
+  console.log('  User:', localStorage.getItem('user') || '❌ No user');
+  console.log('  Is Authenticated:', authApi.isAuthenticated());
+};
+
+// ==================== Default Export ====================
+const api = {
   auth: authApi,
   tasks: { fetchTasks, createTask, updateTask, deleteTask },
   projects: { fetchProjects, createProject, updateProject, deleteProject },
-  bugs: { fetchBugs, createBug, updateBugStatus, deleteBug },
+  bugs: { fetchBugs, createBug, updateBug, updateBugStatus, deleteBug },
+  teams: { fetchTeams, createTeam },
+  notifications: { fetchNotifications, markNotificationAsRead },
+  community: { fetchCommunityPosts, createCommunityPost },
   protected: protectedApi,
+  debug: debugAuth,
+  get: protectedApi.get,
+  post: protectedApi.post,
+  put: protectedApi.put,
+  delete: protectedApi.delete,
 };
+
+export default api;
