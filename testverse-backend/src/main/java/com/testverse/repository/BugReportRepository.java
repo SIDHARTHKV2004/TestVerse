@@ -8,8 +8,8 @@ import java.util.List;
 
 @Repository
 public interface BugReportRepository extends JpaRepository<BugReportEntity, Long> {
-    List<BugReportEntity> findByStatus(String status);
-    List<BugReportEntity> findByPriority(String priority);
     List<BugReportEntity> findByReporterId(Long reporterId);
-    List<BugReportEntity> findByProjectName(String projectName);
+    List<BugReportEntity> findByAssigneeId(Long assigneeId);
+    List<BugReportEntity> findByProjectId(Long projectId);
+    List<BugReportEntity> findByStatus(String status);
 }

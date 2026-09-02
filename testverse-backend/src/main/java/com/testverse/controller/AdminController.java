@@ -4,116 +4,201 @@ import com.testverse.model.UserEntity;
 import com.testverse.model.UserRole;
 import com.testverse.model.UserStatus;
 import com.testverse.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class AdminController {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
 
-    // ===== GET ALL USERS (Admin only) =====
+    // ✅ Get all users (Admin only)
     @GetMapping("/users")
-    public ResponseEntity<?> getAllUsers(Authentication auth) {
-        try {
-            UserEntity admin = userRepository.findByUsername(auth.getName()).orElse(null);
-            if (admin == null || admin.getRole() != UserRole.ADMIN) {
-                return ResponseEntity.status(403).body(Map.of("error", "Only Admin can access this"));
-            }
+    public ResponseEntity<?> getAllUsers() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
-            List<UserEntity> users = userRepository.findAll();
-            return ResponseEntity.ok(users);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can view all users");
         }
+
+        return ResponseEntity.ok(userRepository.findAll());
     }
 
-    // ===== GET PENDING USERS (Admin only) =====
-    @GetMapping("/pending-users")
-    public ResponseEntity<?> getPendingUsers(Authentication auth) {
-        try {
-            UserEntity admin = userRepository.findByUsername(auth.getName()).orElse(null);
-            if (admin == null || admin.getRole() != UserRole.ADMIN) {
-                return ResponseEntity.status(403).body(Map.of("error", "Only Admin can access this"));
-            }
+    // ✅ Get pending users (Admin only)
+    @GetMapping("/users/pending")
+    public ResponseEntity<?> getPendingUsers() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
-            List<UserEntity> pendingUsers = userRepository.findByStatus(UserStatus.PENDING);
-            return ResponseEntity.ok(pendingUsers);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can view pending users");
         }
+
+        List<UserEntity> pendingUsers = userRepository.findByStatus(UserStatus.PENDING);
+        return ResponseEntity.ok(pendingUsers);
     }
 
-    // ===== APPROVE OR REJECT USER (Admin only) =====
-    @PatchMapping("/users/{userId}/status")
-    public ResponseEntity<?> updateUserStatus(@PathVariable Long userId,
-                                              @RequestBody Map<String, String> request,
-                                              Authentication auth) {
-        try {
-            UserEntity admin = userRepository.findByUsername(auth.getName()).orElse(null);
-            if (admin == null || admin.getRole() != UserRole.ADMIN) {
-                return ResponseEntity.status(403).body(Map.of("error", "Only Admin can do this"));
-            }
+    // ✅ Approve user (Admin only)
+    @PutMapping("/users/{userId}/approve")
+    public ResponseEntity<?> approveUser(@PathVariable Long userId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
-            UserEntity user = userRepository.findById(userId).orElse(null);
-            if (user == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            String statusStr = request.get("status");
-            UserStatus newStatus;
-            try {
-                newStatus = UserStatus.valueOf(statusStr.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Invalid status"));
-            }
-
-            user.setStatus(newStatus);
-            userRepository.save(user);
-
-            System.out.println("✅ User " + user.getUsername() + " status updated to: " + newStatus);
-            return ResponseEntity.ok(Map.of(
-                    "message", "User status updated successfully",
-                    "userId", user.getId(),
-                    "username", user.getUsername(),
-                    "status", newStatus.name()
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can approve users");
         }
+
+        return userRepository.findById(userId)
+                .map(user -> {
+                    if (user.getStatus() == UserStatus.PENDING) {
+                        user.setStatus(UserStatus.ACTIVE);
+                        user.setUpdatedAt(LocalDateTime.now());
+                        userRepository.save(user);
+
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("message", "User approved successfully");
+                        response.put("userId", user.getId());
+                        response.put("email", user.getEmail());
+                        response.put("name", user.getName());
+                        response.put("status", user.getStatus().toString());
+                        return ResponseEntity.ok(response);
+                    } else {
+                        return ResponseEntity.badRequest()
+                                .body("User is not in PENDING status");
+                    }
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    // ===== DELETE USER (Admin only) =====
+    // ✅ Reject user (Admin only)
+    @PutMapping("/users/{userId}/reject")
+    public ResponseEntity<?> rejectUser(@PathVariable Long userId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
+
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can reject users");
+        }
+
+        return userRepository.findById(userId)
+                .map(user -> {
+                    if (user.getStatus() == UserStatus.PENDING) {
+                        user.setStatus(UserStatus.REJECTED);
+                        user.setUpdatedAt(LocalDateTime.now());
+                        userRepository.save(user);
+
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("message", "User rejected successfully");
+                        response.put("userId", user.getId());
+                        response.put("email", user.getEmail());
+                        response.put("name", user.getName());
+                        response.put("status", user.getStatus().toString());
+                        return ResponseEntity.ok(response);
+                    } else {
+                        return ResponseEntity.badRequest()
+                                .body("User is not in PENDING status");
+                    }
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ✅ Suspend user (Admin only)
+    @PutMapping("/users/{userId}/suspend")
+    public ResponseEntity<?> suspendUser(@PathVariable Long userId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
+
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can suspend users");
+        }
+
+        return userRepository.findById(userId)
+                .map(user -> {
+                    if (user.getStatus() == UserStatus.ACTIVE) {
+                        user.setStatus(UserStatus.SUSPENDED);
+                        user.setUpdatedAt(LocalDateTime.now());
+                        userRepository.save(user);
+
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("message", "User suspended successfully");
+                        response.put("userId", user.getId());
+                        response.put("email", user.getEmail());
+                        response.put("name", user.getName());
+                        response.put("status", user.getStatus().toString());
+                        return ResponseEntity.ok(response);
+                    } else {
+                        return ResponseEntity.badRequest()
+                                .body("User is not in ACTIVE status");
+                    }
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ✅ Activate suspended user (Admin only)
+    @PutMapping("/users/{userId}/activate")
+    public ResponseEntity<?> activateUser(@PathVariable Long userId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
+
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can activate users");
+        }
+
+        return userRepository.findById(userId)
+                .map(user -> {
+                    if (user.getStatus() == UserStatus.SUSPENDED) {
+                        user.setStatus(UserStatus.ACTIVE);
+                        user.setUpdatedAt(LocalDateTime.now());
+                        userRepository.save(user);
+
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("message", "User activated successfully");
+                        response.put("userId", user.getId());
+                        response.put("email", user.getEmail());
+                        response.put("name", user.getName());
+                        response.put("status", user.getStatus().toString());
+                        return ResponseEntity.ok(response);
+                    } else {
+                        return ResponseEntity.badRequest()
+                                .body("User is not in SUSPENDED status");
+                    }
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ✅ Delete user (Admin only)
     @DeleteMapping("/users/{userId}")
-    public ResponseEntity<?> deleteUser(@PathVariable Long userId, Authentication auth) {
-        try {
-            UserEntity admin = userRepository.findByUsername(auth.getName()).orElse(null);
-            if (admin == null || admin.getRole() != UserRole.ADMIN) {
-                return ResponseEntity.status(403).body(Map.of("error", "Only Admin can delete users"));
-            }
+    public ResponseEntity<?> deleteUser(@PathVariable Long userId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
-            UserEntity user = userRepository.findById(userId).orElse(null);
-            if (user == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            // Don't allow deleting yourself
-            if (user.getId().equals(admin.getId())) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Cannot delete yourself"));
-            }
-
-            userRepository.deleteById(userId);
-            return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can delete users");
         }
+
+        if (userRepository.existsById(userId)) {
+            userRepository.deleteById(userId);
+            return ResponseEntity.ok("User deleted successfully");
+        }
+        return ResponseEntity.notFound().build();
     }
 }

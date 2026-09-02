@@ -15,7 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/posts")
-@CrossOrigin(origins = "*")
+
 public class CommunityController {
 
     @Autowired

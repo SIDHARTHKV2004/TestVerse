@@ -13,7 +13,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/team-management")
-@CrossOrigin(origins = "*")
+
 public class TeamManagementController {
 
     @Autowired

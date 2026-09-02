@@ -17,7 +17,6 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/teams")
-@CrossOrigin(origins = "*")
 public class TeamController {
 
     @Autowired
@@ -186,6 +185,166 @@ public class TeamController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to fetch your teams: " + e.getMessage()));
+        }
+    }
+
+    // ===== ✅ NEW: GET ADMIN TEAM OR CREATE DEFAULT =====
+    @GetMapping("/admin-team")
+    public ResponseEntity<?> getAdminTeam() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity admin = userRepository.findByUsername(username).orElse(null);
+
+            if (admin == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
+            }
+
+            if (admin.getRole() != UserRole.ADMIN) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Only Admin can access this"));
+            }
+
+            // Check if admin has a team
+            if (admin.getTeam() != null) {
+                return ResponseEntity.ok(admin.getTeam());
+            }
+
+            // If no team, check if any team exists
+            List<TeamEntity> allTeams = teamRepository.findAll();
+            if (!allTeams.isEmpty()) {
+                // Add admin to the first team
+                TeamEntity firstTeam = allTeams.get(0);
+                if (firstTeam.getMembers() == null) {
+                    firstTeam.setMembers(new ArrayList<>());
+                }
+                firstTeam.getMembers().add(admin);
+                admin.setTeam(firstTeam);
+                teamRepository.save(firstTeam);
+                userRepository.save(admin);
+                return ResponseEntity.ok(firstTeam);
+            }
+
+            // No team exists - create default team
+            TeamEntity defaultTeam = new TeamEntity();
+            defaultTeam.setName("Default Team");
+            defaultTeam.setDescription("Default team created for admin");
+            defaultTeam.setAdmin(admin);
+            defaultTeam.setCreatedAt(LocalDateTime.now());
+            defaultTeam.setUpdatedAt(LocalDateTime.now());
+
+            List<UserEntity> members = new ArrayList<>();
+            members.add(admin);
+            defaultTeam.setMembers(members);
+
+            TeamEntity savedTeam = teamRepository.save(defaultTeam);
+            admin.setTeam(savedTeam);
+            userRepository.save(admin);
+
+            return ResponseEntity.ok(savedTeam);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get admin team: " + e.getMessage()));
+        }
+    }
+
+    // ===== ✅ NEW: GET AVAILABLE TEAMS FOR JOIN REQUEST =====
+    @GetMapping("/available")
+    public ResponseEntity<?> getAvailableTeams() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity user = userRepository.findByUsername(username).orElse(null);
+
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
+            }
+
+            // Get all teams that the user is not a member of
+            List<TeamEntity> allTeams = teamRepository.findAll();
+            List<TeamEntity> availableTeams = new ArrayList<>();
+
+            for (TeamEntity team : allTeams) {
+                boolean isMember = false;
+                if (team.getMembers() != null) {
+                    for (UserEntity member : team.getMembers()) {
+                        if (member.getId().equals(user.getId())) {
+                            isMember = true;
+                            break;
+                        }
+                    }
+                }
+                if (!isMember) {
+                    availableTeams.add(team);
+                }
+            }
+
+            return ResponseEntity.ok(availableTeams);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch available teams: " + e.getMessage()));
+        }
+    }
+
+    // ===== ✅ NEW: REQUEST TO JOIN TEAM =====
+    @PostMapping("/{teamId}/request-join")
+    public ResponseEntity<?> requestJoinTeam(@PathVariable Long teamId) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity user = userRepository.findByUsername(username).orElse(null);
+
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
+            }
+
+            TeamEntity team = teamRepository.findById(teamId).orElse(null);
+            if (team == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Team not found"));
+            }
+
+            // Check if user is already in team
+            if (team.getMembers() != null) {
+                for (UserEntity member : team.getMembers()) {
+                    if (member.getId().equals(user.getId())) {
+                        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "You are already in this team"));
+                    }
+                }
+            }
+
+            // Add user to team
+            if (team.getMembers() == null) {
+                team.setMembers(new ArrayList<>());
+            }
+            team.getMembers().add(user);
+            user.setTeam(team);
+
+            teamRepository.save(team);
+            userRepository.save(user);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "You have successfully joined the team!");
+            response.put("teamId", team.getId());
+            response.put("teamName", team.getName());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to join team: " + e.getMessage()));
         }
     }
 
