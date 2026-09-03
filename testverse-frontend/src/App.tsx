@@ -22,12 +22,10 @@ import SearchPage from './pages/SearchPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import PendingApprovalPage from './pages/PendingApprovalPage';
 
-// ✅ Component to sync URL with sidebar
 const RouteSync: React.FC<{ onNavigate: (page: string) => void }> = ({ onNavigate }) => {
     const location = useLocation();
 
     useEffect(() => {
-        // Get the page name from URL path
         const path = location.pathname.replace('/', '');
         const page = path || 'dashboard';
         onNavigate(page);
@@ -47,6 +45,7 @@ const AppContent: React.FC = () => {
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/pending-approval" element={<PendingApprovalPage />} />
+                <Route path="/" element={<Navigate to="/login" />} />
                 <Route path="*" element={<Navigate to="/login" />} />
             </Routes>
         );
@@ -58,7 +57,6 @@ const AppContent: React.FC = () => {
 
     return (
         <MainLayout currentPage={currentPage} onNavigate={handleNavigate}>
-            {/* ✅ Sync URL changes with sidebar */}
             <RouteSync onNavigate={handleNavigate} />
             <Routes>
                 <Route path="/dashboard" element={<DashboardPage />} />
