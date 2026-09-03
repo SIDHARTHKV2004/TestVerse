@@ -1,6 +1,11 @@
 // API Service for TestVerse Backend
 
-const API_BASE_URL = 'http://localhost:8080';
+// ✅ Fix: Use import.meta.env with proper TypeScript support
+// Add this line at the top to fix the import.meta.env error
+/// <reference types="vite/client" />
+
+// ✅ Use environment variable for production, fallback to localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 // ==================== Types ====================
 export interface LoginRequest {
@@ -110,7 +115,7 @@ const handleResponse = async (response: Response): Promise<any> => {
       if (errorData) {
         errorMessage = errorData;
       }
-    } catch (e) {
+    } catch (_) {
       // Ignore
     }
     throw new Error(errorMessage);
@@ -123,7 +128,7 @@ const handleResponse = async (response: Response): Promise<any> => {
 
   try {
     return await response.json();
-  } catch (e) {
+  } catch (_) {
     return await response.text();
   }
 };
@@ -172,7 +177,7 @@ export const authApi = {
         if (errorData) {
           errorMessage = errorData;
         }
-      } catch (e) {
+      } catch (_) {
         // Ignore
       }
       throw new Error(errorMessage);
@@ -180,9 +185,6 @@ export const authApi = {
 
     const data = await response.json();
     console.log('📥 Registration response:', data);
-
-    // ⚠️ IMPORTANT: DON'T set token or user here - user needs admin approval
-    // Users with PENDING status cannot login until approved
 
     return data;
   },
