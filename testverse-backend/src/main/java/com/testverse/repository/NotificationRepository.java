@@ -7,8 +7,18 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface NotificationRepository extends JpaRepository<NotificationEntity, Long> {
-    List<NotificationEntity> findByUserIdOrderByCreatedAtDesc(Long userId);
-    List<NotificationEntity> findByUserIdAndIsRead(Long userId, boolean isRead);
-    List<NotificationEntity> findByUserIdAndType(Long userId, String type);
+public interface NotificationRepository
+        extends JpaRepository<NotificationEntity, String> {
+
+    List<NotificationEntity> findByUserIdOrderByCreatedAtDesc(String userId);
+
+    List<NotificationEntity> findByUserIdAndIsRead(
+            String userId,
+            boolean isRead
+    );
+
+    List<NotificationEntity> findByUserIdAndType(
+            String userId,
+            String type
+    );
 }

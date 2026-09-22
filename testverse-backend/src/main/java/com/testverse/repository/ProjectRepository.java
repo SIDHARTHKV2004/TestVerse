@@ -7,7 +7,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
-    List<ProjectEntity> findByCreatedById(Long createdById);
+public interface ProjectRepository extends JpaRepository<ProjectEntity, String> {
+
+    List<ProjectEntity> findByCreatedById(String createdById);
+
     List<ProjectEntity> findByStatus(String status);
 }

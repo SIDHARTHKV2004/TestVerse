@@ -15,7 +15,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/projects")
-
 public class ProjectController {
 
     @Autowired
@@ -30,12 +29,20 @@ public class ProjectController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createProject(@RequestBody Map<String, Object> request, Authentication auth) {
+    public ResponseEntity<?> createProject(
+            @RequestBody Map<String, Object> request,
+            Authentication auth) {
+
         try {
-            UserEntity user = userRepository.findByUsername(auth.getName()).orElse(null);
-            if (user == null) return ResponseEntity.status(401).build();
+            UserEntity user =
+                    userRepository.findByUsername(auth.getName()).orElse(null);
+
+            if (user == null) {
+                return ResponseEntity.status(401).build();
+            }
 
             ProjectEntity project = new ProjectEntity();
+
             project.setName((String) request.get("name"));
             project.setDescription((String) request.get("description"));
             project.setCategory((String) request.get("category"));
@@ -46,15 +53,25 @@ public class ProjectController {
             project.setCreatedAt(LocalDateTime.now());
             project.setUpdatedAt(LocalDateTime.now());
 
-            return ResponseEntity.ok(projectRepository.save(project));
+            return ResponseEntity.ok(
+                    projectRepository.save(project)
+            );
+
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of("error", e.getMessage()));
         }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteProject(@PathVariable Long id) {
+    public ResponseEntity<?> deleteProject(
+            @PathVariable String id) {
+
         projectRepository.deleteById(id);
-        return ResponseEntity.ok(Map.of("message", "Project deleted successfully"));
+
+        return ResponseEntity.ok(
+                Map.of("message", "Project deleted successfully")
+        );
     }
 }

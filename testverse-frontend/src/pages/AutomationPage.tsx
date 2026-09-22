@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-    Plus, Play, CheckCircle, XCircle, Clock, Settings, Rocket, Code,
-    X, FileCode, User, Calendar, GitBranch, Terminal
+    Plus, CheckCircle, XCircle, Clock, Settings, Rocket, Code,
+    X, User
 } from 'lucide-react';
 
 interface AutomationScript {
@@ -23,7 +23,9 @@ interface AutomationScript {
 }
 
 const AutomationPage: React.FC = () => {
-    const { user, token, isAdmin, isStudent } = useAuth();
+    const { user, isAdmin, isStudent } = useAuth();
+
+    const token = localStorage.getItem('token');
     const [scripts, setScripts] = useState<AutomationScript[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -38,7 +40,7 @@ const AutomationPage: React.FC = () => {
     });
 
     useEffect(() => {
-        fetchScripts();
+        void fetchScripts();
     }, []);
 
     const fetchScripts = async () => {

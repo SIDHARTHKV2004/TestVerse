@@ -23,36 +23,47 @@ public class BugController {
 
     private final BugReportRepository bugReportRepository;
 
-    // ✅ Get all bugs - Everyone can view
+    // Get all bugs - Everyone can view
     @GetMapping
     public ResponseEntity<List<BugReportEntity>> getAllBugs() {
         return ResponseEntity.ok(bugReportRepository.findAll());
     }
 
-    // ✅ Get bug by ID - Everyone can view
+    // Get bug by ID - Everyone can view
     @GetMapping("/{id}")
-    public ResponseEntity<?> getBugById(@PathVariable Long id) {
+    public ResponseEntity<?> getBugById(@PathVariable String id) {
         return bugReportRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ✅ Create Bug - Only ADMIN and TESTER
+    // Create Bug - Only ADMIN and TESTER
     @PostMapping
     public ResponseEntity<?> createBug(@RequestBody BugReportEntity bug) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
-        if (currentUser.getRole() != UserRole.ADMIN && currentUser.getRole() != UserRole.TESTER) {
+        if (currentUser.getRole() != UserRole.ADMIN &&
+                currentUser.getRole() != UserRole.TESTER) {
+
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Only Admin and Tester can create bugs");
         }
 
         bug.setCreatedAt(LocalDateTime.now());
         bug.setUpdatedAt(LocalDateTime.now());
-        if (bug.getStatus() == null) bug.setStatus("OPEN");
-        if (bug.getSeverity() == null) bug.setSeverity("MEDIUM");
-        if (bug.getPriority() == null) bug.setPriority("MEDIUM");
+
+        if (bug.getStatus() == null) {
+            bug.setStatus("OPEN");
+        }
+
+        if (bug.getSeverity() == null) {
+            bug.setSeverity("MEDIUM");
+        }
+
+        if (bug.getPriority() == null) {
+            bug.setPriority("MEDIUM");
+        }
 
         // Set reporter ID if not set
         if (bug.getReporterId() == null) {
@@ -61,12 +72,17 @@ public class BugController {
         }
 
         BugReportEntity savedBug = bugReportRepository.save(bug);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedBug);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(savedBug);
     }
 
-    // ✅ Update Bug Details - Only ADMIN
+    // Update Bug Details - Only ADMIN
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateBug(@PathVariable Long id, @RequestBody BugReportEntity bugDetails) {
+    public ResponseEntity<?> updateBug(
+            @PathVariable String id,
+            @RequestBody BugReportEntity bugDetails) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
@@ -77,83 +93,127 @@ public class BugController {
 
         return bugReportRepository.findById(id)
                 .map(bug -> {
+
                     bug.setTitle(bugDetails.getTitle());
                     bug.setDescription(bugDetails.getDescription());
                     bug.setSeverity(bugDetails.getSeverity());
                     bug.setPriority(bugDetails.getPriority());
+
                     bug.setAssigneeId(bugDetails.getAssigneeId());
                     bug.setAssigneeName(bugDetails.getAssigneeName());
+
                     bug.setUpdatedAt(LocalDateTime.now());
-                    return ResponseEntity.ok(bugReportRepository.save(bug));
+
+                    return ResponseEntity.ok(
+                            bugReportRepository.save(bug)
+                    );
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ✅ Update Bug Status - Only ADMIN and DEVELOPER
+    // Update Bug Status - Only ADMIN and DEVELOPER
     @PatchMapping("/{id}/status")
-    public ResponseEntity<?> updateBugStatus(@PathVariable Long id, @RequestBody Map<String, String> statusUpdate) {
+    public ResponseEntity<?> updateBugStatus(
+            @PathVariable String id,
+            @RequestBody Map<String, String> statusUpdate) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
-        if (currentUser.getRole() != UserRole.ADMIN && currentUser.getRole() != UserRole.DEVELOPER) {
+        if (currentUser.getRole() != UserRole.ADMIN &&
+                currentUser.getRole() != UserRole.DEVELOPER) {
+
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Only Admin and Developer can update bug status");
         }
 
         return bugReportRepository.findById(id)
                 .map(bug -> {
+
                     String newStatus = statusUpdate.get("status");
+
                     if (newStatus == null || newStatus.isEmpty()) {
-                        return ResponseEntity.badRequest().body("Status is required");
+                        return ResponseEntity.badRequest()
+                                .body("Status is required");
                     }
+
                     bug.setStatus(newStatus);
                     bug.setUpdatedAt(LocalDateTime.now());
-                    return ResponseEntity.ok(bugReportRepository.save(bug));
+
+                    return ResponseEntity.ok(
+                            bugReportRepository.save(bug)
+                    );
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ✅ Delete Bug - Only ADMIN and TESTER (so testers can delete their own mistakes)
+    // Delete Bug - Only ADMIN and TESTER
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteBug(@PathVariable Long id) {
+    public ResponseEntity<?> deleteBug(@PathVariable String id) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
-        if (currentUser.getRole() != UserRole.ADMIN && currentUser.getRole() != UserRole.TESTER) {
+        if (currentUser.getRole() != UserRole.ADMIN &&
+                currentUser.getRole() != UserRole.TESTER) {
+
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Only Admin and Tester can delete bugs");
         }
 
         return bugReportRepository.findById(id)
                 .map(bug -> {
-                    // If Tester, only allow deletion if they created it
+
+                    // Testers can only delete bugs they created
                     if (currentUser.getRole() == UserRole.TESTER) {
-                        if (!Objects.equals(bug.getReporterId(), currentUser.getId())) {
+
+                        if (!Objects.equals(
+                                bug.getReporterId(),
+                                currentUser.getId())) {
+
                             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                                     .body("Testers can only delete bugs they created");
                         }
                     }
+
                     bugReportRepository.deleteById(id);
-                    return ResponseEntity.ok("Bug deleted successfully");
+
+                    return ResponseEntity.ok(
+                            "Bug deleted successfully"
+                    );
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ✅ Get bugs by status - Everyone can view
+    // Get bugs by status - Everyone can view
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<BugReportEntity>> getBugsByStatus(@PathVariable String status) {
-        return ResponseEntity.ok(bugReportRepository.findByStatus(status));
+    public ResponseEntity<List<BugReportEntity>> getBugsByStatus(
+            @PathVariable String status) {
+
+        return ResponseEntity.ok(
+                bugReportRepository.findByStatus(status)
+        );
     }
 
-    // ✅ Get bugs by reporter - Everyone can view
+    // Get bugs by reporter - Everyone can view
+    // reporterId is a UserEntity ID, therefore String
     @GetMapping("/reporter/{reporterId}")
-    public ResponseEntity<List<BugReportEntity>> getBugsByReporter(@PathVariable Long reporterId) {
-        return ResponseEntity.ok(bugReportRepository.findByReporterId(reporterId));
+    public ResponseEntity<List<BugReportEntity>> getBugsByReporter(
+            @PathVariable String reporterId) {
+
+        return ResponseEntity.ok(
+                bugReportRepository.findByReporterId(reporterId)
+        );
     }
 
-    // ✅ Get bugs by assignee - Everyone can view
+    // Get bugs by assignee - Everyone can view
+    // assigneeId is a UserEntity ID, therefore String
     @GetMapping("/assignee/{assigneeId}")
-    public ResponseEntity<List<BugReportEntity>> getBugsByAssignee(@PathVariable Long assigneeId) {
-        return ResponseEntity.ok(bugReportRepository.findByAssigneeId(assigneeId));
+    public ResponseEntity<List<BugReportEntity>> getBugsByAssignee(
+            @PathVariable String assigneeId) {
+
+        return ResponseEntity.ok(
+                bugReportRepository.findByAssigneeId(assigneeId)
+        );
     }
 }

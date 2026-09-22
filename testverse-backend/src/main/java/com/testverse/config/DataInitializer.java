@@ -18,11 +18,15 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Create Admin User
+
+        // ============================================================
+        // CREATE ADMIN USER
+        // ============================================================
         if (userRepository.findByEmail("admin@testverse.com").isEmpty()) {
+
             UserEntity admin = UserEntity.builder()
                     .email("admin@testverse.com")
-                    .password(passwordEncoder.encode("admin123"))
+                    .username("admin@testverse.com")
                     .passwordHash(passwordEncoder.encode("admin123"))
                     .name("Admin User")
                     .role(UserRole.ADMIN)
@@ -30,14 +34,18 @@ public class DataInitializer implements CommandLineRunner {
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
+
             userRepository.save(admin);
         }
 
-        // Create Tester User
+        // ============================================================
+        // CREATE TESTER USER
+        // ============================================================
         if (userRepository.findByEmail("tester@testverse.com").isEmpty()) {
+
             UserEntity tester = UserEntity.builder()
                     .email("tester@testverse.com")
-                    .password(passwordEncoder.encode("tester123"))
+                    .username("tester@testverse.com")
                     .passwordHash(passwordEncoder.encode("tester123"))
                     .name("Tester User")
                     .role(UserRole.TESTER)
@@ -45,14 +53,18 @@ public class DataInitializer implements CommandLineRunner {
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
+
             userRepository.save(tester);
         }
 
-        // Create Developer User
+        // ============================================================
+        // CREATE DEVELOPER USER
+        // ============================================================
         if (userRepository.findByEmail("developer@testverse.com").isEmpty()) {
+
             UserEntity developer = UserEntity.builder()
                     .email("developer@testverse.com")
-                    .password(passwordEncoder.encode("developer123"))
+                    .username("developer@testverse.com")
                     .passwordHash(passwordEncoder.encode("developer123"))
                     .name("Developer User")
                     .role(UserRole.DEVELOPER)
@@ -60,6 +72,7 @@ public class DataInitializer implements CommandLineRunner {
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
+
             userRepository.save(developer);
         }
     }

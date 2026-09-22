@@ -11,6 +11,9 @@ interface UserData {
     createdAt: string;
 }
 
+// Backend URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 const AdminUsersPage: React.FC = () => {
     const { user } = useAuth();
     const token = localStorage.getItem('token');
@@ -29,7 +32,7 @@ const AdminUsersPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch('http://localhost:8080/api/admin/users', {
+            const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -59,7 +62,7 @@ const AdminUsersPage: React.FC = () => {
     const handleApprove = async (userId: number): Promise<void> => {
         setActionLoading(userId);
         try {
-            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/approve`, {
+            const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/approve`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -88,7 +91,7 @@ const AdminUsersPage: React.FC = () => {
 
         setActionLoading(userId);
         try {
-            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/reject`, {
+            const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/reject`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -117,7 +120,7 @@ const AdminUsersPage: React.FC = () => {
 
         setActionLoading(userId);
         try {
-            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/suspend`, {
+            const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/suspend`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -144,7 +147,7 @@ const AdminUsersPage: React.FC = () => {
     const handleActivate = async (userId: number): Promise<void> => {
         setActionLoading(userId);
         try {
-            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/activate`, {
+            const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/activate`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -197,7 +200,7 @@ const AdminUsersPage: React.FC = () => {
 
         setActionLoading(userId);
         try {
-            const response = await fetch(`http://localhost:8080/api/admin/users/${userId}`, {
+            const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -356,26 +359,26 @@ const AdminUsersPage: React.FC = () => {
                                                 {userData.name}
                                                 {isOwnAccount && (
                                                     <span className="ml-2 text-xs text-[#ff6b00] font-normal">
-                            (You)
-                          </span>
+                                                        (You)
+                                                    </span>
                                                 )}
                                                 {!isOwnAccount && isAdminUser && (
                                                     <span className="ml-2 text-xs text-purple-400 font-normal">
-                            (Admin)
-                          </span>
+                                                        (Admin)
+                                                    </span>
                                                 )}
                                             </h3>
                                             <p className="text-sm text-[#666666]">{userData.email}</p>
                                             <div className="flex items-center gap-3 mt-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            isAdminUser ? 'bg-purple-500/20 text-purple-400' : 'bg-[#1a1a1a] text-[#666666]'
-                        }`}>
-                          {userData.role}
-                        </span>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                    isAdminUser ? 'bg-purple-500/20 text-purple-400' : 'bg-[#1a1a1a] text-[#666666]'
+                                                }`}>
+                                                    {userData.role}
+                                                </span>
                                                 <span className={`text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 ${getStatusBadge(userData.status)}`}>
-                          {getStatusIcon(userData.status)}
+                                                    {getStatusIcon(userData.status)}
                                                     {userData.status}
-                        </span>
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -439,17 +442,17 @@ const AdminUsersPage: React.FC = () => {
                                         {/* Show "Protected" for admin accounts */}
                                         {!isOwnAccount && isAdminUser && (
                                             <span className="px-3 py-1.5 bg-purple-500/10 text-purple-400 rounded-lg text-sm flex items-center gap-1 cursor-not-allowed border border-purple-500/20">
-                        <Shield size={14} />
-                        Protected
-                      </span>
+                                                <Shield size={14} />
+                                                Protected
+                                            </span>
                                         )}
 
                                         {/* Show "Your Account" for own account */}
                                         {isOwnAccount && (
                                             <span className="px-3 py-1.5 bg-[#ff6b00]/10 text-[#ff6b00] rounded-lg text-sm flex items-center gap-1 cursor-not-allowed border border-[#ff6b00]/20">
-                        <UserCheck size={14} />
-                        Your Account
-                      </span>
+                                                <UserCheck size={14} />
+                                                Your Account
+                                            </span>
                                         )}
                                     </div>
                                 </div>

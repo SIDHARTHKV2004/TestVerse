@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -17,9 +18,10 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class UserEntity implements UserDetails {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(nullable = false, updatable = false)
+    private String id;
 
     @Column(unique = true, nullable = false)
     private String email;
@@ -27,10 +29,7 @@ public class UserEntity implements UserDetails {
     @Column(unique = true)
     private String username;
 
-    @Column(nullable = false)
-    private String password;
-
-    @Column(name = "password_hash")
+    @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
     @Column(nullable = false)
@@ -49,9 +48,27 @@ public class UserEntity implements UserDetails {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    private LocalDateTime lastActiveAt;
+
+    @PrePersist
+    public void generateId() {
+        if (id == null || id.isBlank()) {
+            id = UUID.randomUUID().toString();
+        }
+    }
+
+    @Override
+    public String getPassword() {
+        return passwordHash;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + (role != null ? role.name() : "USER")));
+        return List.of(
+                new SimpleGrantedAuthority(
+                        "ROLE_" + (role != null ? role.name() : "USER")
+                )
+        );
     }
 
     @Override

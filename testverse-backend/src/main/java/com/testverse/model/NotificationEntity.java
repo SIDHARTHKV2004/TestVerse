@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "notifications")
@@ -17,8 +18,8 @@ import java.time.LocalDateTime;
 public class NotificationEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(nullable = false, updatable = false)
+    private String id;
 
     @Column(nullable = false)
     private String title;
@@ -42,11 +43,19 @@ public class NotificationEntity {
     private Boolean isAccepted = false;
 
     @Column(name = "sender_id")
-    private Long senderId;
+    private String senderId;
 
     @Column(name = "team_id")
     private Long teamId;
 
     private LocalDateTime createdAt;
+
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void generateId() {
+        if (id == null || id.isBlank()) {
+            id = UUID.randomUUID().toString();
+        }
+    }
 }

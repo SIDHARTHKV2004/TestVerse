@@ -7,9 +7,13 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface BugReportRepository extends JpaRepository<BugReportEntity, Long> {
-    List<BugReportEntity> findByReporterId(Long reporterId);
-    List<BugReportEntity> findByAssigneeId(Long assigneeId);
-    List<BugReportEntity> findByProjectId(Long projectId);
+public interface BugReportRepository extends JpaRepository<BugReportEntity, String> {
+
+    List<BugReportEntity> findByReporterId(String reporterId);
+
+    List<BugReportEntity> findByAssigneeId(String assigneeId);
+
+    List<BugReportEntity> findByProjectId(String projectId);
+
     List<BugReportEntity> findByStatus(String status);
 }

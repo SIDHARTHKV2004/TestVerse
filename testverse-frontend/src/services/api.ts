@@ -5,7 +5,7 @@
 /// <reference types="vite/client" />
 
 // ✅ Use environment variable for production, fallback to localhost for development
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 // ==================== Types ====================
 export interface LoginRequest {
@@ -261,7 +261,7 @@ export const createTask = async (taskData: any): Promise<Task> => {
   }
 };
 
-export const updateTask = async (id: number, taskData: any): Promise<Task> => {
+export const updateTask = async (id: string, taskData: any): Promise<Task> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
       method: 'PUT',

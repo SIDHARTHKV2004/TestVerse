@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "tasks")
@@ -18,8 +19,8 @@ import java.time.LocalDateTime;
 public class TaskEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "id", nullable = false)
+    private String id;
 
     @Column(nullable = false)
     private String title;
@@ -34,13 +35,13 @@ public class TaskEntity {
     private LocalDate dueDate;
 
     @Column(name = "assigned_student_id")
-    private Long assignedStudentId;
+    private String assignedStudentId;
 
     @Column(name = "mentor_id")
-    private Long mentorId;
+    private String mentorId;
 
     @Column(name = "project_id")
-    private Long projectId;
+    private String projectId;
 
     @Column(name = "module_name")
     private String moduleName;
@@ -55,4 +56,11 @@ public class TaskEntity {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void generateId() {
+        if (id == null || id.isBlank()) {
+            id = UUID.randomUUID().toString();
+        }
+    }
 }

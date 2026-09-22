@@ -5,5 +5,6 @@ public enum UserRole {
     USER,
     MANAGER,
     TESTER,
-    DEVELOPER
+    DEVELOPER,
+    MENTOR
 }

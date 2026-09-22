@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class BugReportEntity {
+
+    // Bug ID - Long
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -34,20 +36,23 @@ public class BugReportEntity {
     @Column(name = "actual_result", length = 1000)
     private String actualResult;
 
+    // User ID - String because UserEntity.id is String
     @Column(name = "reporter_id")
-    private Long reporterId;
+    private String reporterId;
 
     @Column(name = "reporter_name")
     private String reporterName;
 
+    // User ID - String because UserEntity.id is String
     @Column(name = "assignee_id")
-    private Long assigneeId;
+    private String assigneeId;
 
     @Column(name = "assignee_name")
     private String assigneeName;
 
+    // Project ID - Long because ProjectEntity.id is Long
     @Column(name = "project_id")
-    private Long projectId;
+    private String projectId;
 
     @Column(name = "project_name")
     private String projectName;
@@ -69,9 +74,18 @@ public class BugReportEntity {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        if (status == null) status = "OPEN";
-        if (severity == null) severity = "MEDIUM";
-        if (priority == null) priority = "MEDIUM";
+
+        if (status == null) {
+            status = "OPEN";
+        }
+
+        if (severity == null) {
+            severity = "MEDIUM";
+        }
+
+        if (priority == null) {
+            priority = "MEDIUM";
+        }
     }
 
     @PreUpdate

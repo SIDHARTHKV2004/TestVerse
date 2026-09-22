@@ -8,6 +8,6 @@ import java.util.List;
 
 @Repository
 public interface CommunityPostRepository extends JpaRepository<CommunityPostEntity, Long> {
-    List<CommunityPostEntity> findByAuthorId(Long authorId);
+    List<CommunityPostEntity> findByAuthorId(String authorId);
     List<CommunityPostEntity> findByIsPinnedTrue();
 }

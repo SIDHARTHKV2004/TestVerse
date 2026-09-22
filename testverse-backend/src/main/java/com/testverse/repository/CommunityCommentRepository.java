@@ -9,5 +9,5 @@ import java.util.List;
 @Repository
 public interface CommunityCommentRepository extends JpaRepository<CommunityCommentEntity, Long> {
     List<CommunityCommentEntity> findByPostId(Long postId);
-    List<CommunityCommentEntity> findByAuthorId(Long authorId);
+    List<CommunityCommentEntity> findByAuthorId(String authorId);
 }

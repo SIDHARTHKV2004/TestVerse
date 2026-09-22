@@ -38,7 +38,7 @@ public class TeamManagementController {
         String description = (String) request.getOrDefault("description", "");
 
         // Get admin user (hardcoded for testing)
-        UserEntity admin = userRepository.findById(1L).orElse(null);
+        UserEntity admin = userRepository.findByEmail("admin@testverse.com").orElse(null);
 
         TeamEntity team = new TeamEntity();
         team.setName(name);

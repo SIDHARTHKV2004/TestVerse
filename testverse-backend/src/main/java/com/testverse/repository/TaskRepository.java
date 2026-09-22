@@ -7,9 +7,13 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
-    List<TaskEntity> findByAssignedStudentId(Long studentId);
-    List<TaskEntity> findByMentorId(Long mentorId);
-    List<TaskEntity> findByProjectId(Long projectId);
+public interface TaskRepository extends JpaRepository<TaskEntity, String> {
+
+    List<TaskEntity> findByAssignedStudentId(String studentId);
+
+    List<TaskEntity> findByMentorId(String mentorId);
+
+    List<TaskEntity> findByProjectId(String projectId);
+
     List<TaskEntity> findByStatus(String status);
 }

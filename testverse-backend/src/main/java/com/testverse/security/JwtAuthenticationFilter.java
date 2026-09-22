@@ -31,32 +31,70 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
 
-        // Skip if no token
+        // No JWT token
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
-        userEmail = jwtService.extractUsername(jwt);
+        try {
+            final String jwt = authHeader.substring(7);
 
-        // If user email exists and no authentication in context
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+            // Extract email from JWT
+            final String userEmail = jwtService.extractUsername(jwt);
 
-            // ✅ Using isTokenValid method
-            if (jwtService.isTokenValid(jwt, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
+            System.out.println("JWT USER EMAIL: " + userEmail);
+
+            if (userEmail != null
+                    && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                UserDetails userDetails =
+                        userDetailsService.loadUserByUsername(userEmail);
+
+                System.out.println(
+                        "JWT USER AUTHORITIES: "
+                                + userDetails.getAuthorities()
                 );
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                // Validate token
+                if (jwtService.isTokenValid(jwt, userDetails)) {
+
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
+
+                    authToken.setDetails(
+                            new WebAuthenticationDetailsSource()
+                                    .buildDetails(request)
+                    );
+
+                    SecurityContextHolder.getContext()
+                            .setAuthentication(authToken);
+
+                    System.out.println(
+                            "JWT AUTHENTICATION SUCCESS: "
+                                    + userEmail
+                    );
+                } else {
+                    System.out.println(
+                            "JWT AUTHENTICATION FAILED: Invalid token"
+                    );
+                }
             }
+
+        } catch (Exception e) {
+
+            System.out.println(
+                    "JWT AUTHENTICATION ERROR: "
+                            + e.getMessage()
+            );
+
+            // Don't stop the request here.
+            // Spring Security will handle unauthenticated requests.
         }
 
         filterChain.doFilter(request, response);
