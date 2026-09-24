@@ -300,4 +300,81 @@ public class AuthController {
                     .body("Login failed: " + e.getMessage());
         }
     }
+    // ============================================================
+    // GET MENTORS BY DEPARTMENT
+    // Returns only ACTIVE mentors from the selected department.
+    // Example:
+    // /api/auth/mentors?department=TESTING
+    // ============================================================
+    @GetMapping("/mentors")
+    public ResponseEntity<?> getMentors(
+            @RequestParam String department) {
+
+        try {
+
+            // ----------------------------------------------------
+            // Validate department
+            // ----------------------------------------------------
+            if (department == null || department.isBlank()) {
+                return ResponseEntity
+                        .badRequest()
+                        .body("Department is required");
+            }
+
+            String normalizedDepartment =
+                    department.trim().toUpperCase();
+
+            // ----------------------------------------------------
+            // Allow only our supported departments
+            // ----------------------------------------------------
+            if (!normalizedDepartment.equals("TESTING")
+                    && !normalizedDepartment.equals("DEVELOPMENT")) {
+
+                return ResponseEntity
+                        .badRequest()
+                        .body(
+                                "Invalid department. Allowed: TESTING, DEVELOPMENT"
+                        );
+            }
+
+            // ----------------------------------------------------
+            // Find ACTIVE mentors in this department
+            // ----------------------------------------------------
+            List<UserEntity> mentors =
+                    userRepository
+                            .findByRoleAndDepartmentAndStatus(
+                                    UserRole.MENTOR,
+                                    normalizedDepartment,
+                                    UserStatus.ACTIVE
+                            );
+
+            // ----------------------------------------------------
+            // Return only the information frontend needs.
+            // Do NOT return the complete UserEntity.
+            // ----------------------------------------------------
+            List<Map<String, String>> mentorList =
+                    mentors.stream()
+                            .map(mentor -> {
+
+                                Map<String, String> mentorData =
+                                        new HashMap<>();
+
+                                mentorData.put("id", mentor.getId());
+                                mentorData.put("name", mentor.getName());
+
+                                return mentorData;
+                            })
+                            .toList();
+
+            return ResponseEntity.ok(mentorList);
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to load mentors");
+        }
+    }
 }

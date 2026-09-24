@@ -1,0 +1,77 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   RobotPet.css  (Three.js procedural robot overlay)
+   Replaces the old image-based robot CSS.
+   The canvas is transparent and sits ABOVE the login card.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Outer wrapper — absolutely positioned inside the card tilt-wrapper */
+.robot-pet-wrapper {
+  position: absolute;
+  top: -130px;      /* robot sits above the card top edge */
+  left: -8px;
+  right: -8px;
+  height: 140px;
+  pointer-events: none;   /* NEVER blocks login form interactions */
+  z-index: 30;
+  overflow: visible;
+}
+
+/* The Three.js canvas */
+.robot-pet-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  pointer-events: none;
+}
+
+/* Speech bubble */
+.robot-speech-bubble {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(3, 12, 28, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #38bdf8;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  user-select: none;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+}
+
+.robot-speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid rgba(56, 189, 248, 0.4);
+}
+
+.robot-speech-bubble.visible {
+  opacity: 1;
+}
+
+/* Smaller on mobile */
+@media (max-width: 600px) {
+  .robot-pet-wrapper {
+    top: -100px;
+    height: 110px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-pet-wrapper {
+    display: none;
+  }
+}

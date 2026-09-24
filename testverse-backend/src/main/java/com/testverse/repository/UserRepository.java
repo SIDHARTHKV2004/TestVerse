@@ -21,4 +21,11 @@ public interface UserRepository extends JpaRepository<UserEntity, String> {
     List<UserEntity> findByRole(UserRole role);
 
     boolean existsByEmail(String email);
+
+    // Find mentors belonging to a specific department and having ACTIVE status
+    List<UserEntity> findByRoleAndDepartmentAndStatus(
+            UserRole role,
+            String department,
+            UserStatus status
+    );
 }

@@ -207,6 +207,23 @@ export const authApi = {
   isAuthenticated: (): boolean => {
     return !!localStorage.getItem('token');
   },
+
+  getMentorsByDepartment: async (department: string): Promise<{ id: string; name: string }[]> => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/mentors?department=${encodeURIComponent(department)}`);
+    if (!response.ok) {
+      let errorMessage = 'Failed to fetch mentors';
+      try {
+        const errorData = await response.text();
+        if (errorData) {
+          errorMessage = errorData;
+        }
+      } catch (_) {
+        // Ignore
+      }
+      throw new Error(errorMessage);
+    }
+    return response.json();
+  },
 };
 
 // ==================== Task API ====================

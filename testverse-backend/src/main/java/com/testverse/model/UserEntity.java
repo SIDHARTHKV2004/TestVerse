@@ -41,6 +41,23 @@ public class UserEntity implements UserDetails {
     @Enumerated(EnumType.STRING)
     private UserStatus status;
 
+    // ============================================================
+    // DEPARTMENT
+    // Example: TESTING or DEVELOPMENT
+    // ============================================================
+    private String department;
+
+    // ============================================================
+    // MENTOR
+    // Points to another UserEntity whose role is MENTOR.
+    // ============================================================
+    @ManyToOne
+    @JoinColumn(name = "mentor_id")
+    private UserEntity mentor;
+
+    // ============================================================
+    // TEAM
+    // ============================================================
     @ManyToOne
     @JoinColumn(name = "team_id")
     private TeamEntity team;
