@@ -32,6 +32,18 @@ public class UserEntity implements UserDetails {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    // Backward-compatible mapping for existing legacy database column
+    @Column(name = "password", nullable = true)
+    private String legacyPassword;
+
+    @PrePersist
+    @PreUpdate
+    public void syncLegacyPassword() {
+        if (this.passwordHash != null) {
+            this.legacyPassword = this.passwordHash;
+        }
+    }
+
     @Column(nullable = false)
     private String name;
 
