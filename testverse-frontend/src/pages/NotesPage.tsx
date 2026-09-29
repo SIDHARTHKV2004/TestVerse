@@ -65,11 +65,11 @@ export const NotesPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-2">
-            <BookOpen className="w-6 h-6 text-amber-500" />
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center space-x-2">
+            <BookOpen className="w-6 h-6 text-[#0062E0]" />
             <span>Notes, PDF Resources & Assignments Repository</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Access study guides, Selenium handbooks, video lectures, and bookmark reference materials.
           </p>
         </div>
@@ -77,7 +77,7 @@ export const NotesPage: React.FC = () => {
         {role === 'MENTOR' && (
           <button
             onClick={() => setShowUploadModal(true)}
-            className="flex items-center space-x-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-amber-600/30"
+            className="flex items-center space-x-1.5 px-4 py-2.5 bg-[#0062E0] hover:bg-[#0050B8] text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
           >
             <Upload className="w-4 h-4" />
             <span>Upload New Material</span>
@@ -91,10 +91,10 @@ export const NotesPage: React.FC = () => {
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+            className={`px-3.5 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
               selectedCategory === cat
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 hover:bg-slate-800'
+                ? 'bg-[#0062E0] text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
             }`}
           >
             {cat === 'BOOKMARKS' ? '⭐ Bookmarked Items' : cat}
@@ -105,13 +105,13 @@ export const NotesPage: React.FC = () => {
       {/* Grid of Notes */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredNotes.map(note => (
-          <div key={note.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3 flex flex-col justify-between">
+          <div key={note.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 flex flex-col justify-between hover:border-[#0062E0] hover:shadow-md transition-all">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${
-                  note.type === 'PDF' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
-                  note.type === 'VIDEO' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' :
-                  'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded border uppercase ${
+                  note.type === 'PDF' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                  note.type === 'VIDEO' ? 'bg-blue-50 text-[#0062E0] border-blue-200' :
+                  'bg-emerald-50 text-emerald-700 border-emerald-200'
                 }`}>
                   {note.type}
                 </span>
@@ -119,18 +119,18 @@ export const NotesPage: React.FC = () => {
                 <button
                   onClick={() => toggleBookmark(note.id)}
                   className={`p-1 rounded-lg transition-colors ${
-                    note.isBookmarked ? 'text-amber-400 fill-amber-400' : 'text-slate-400 hover:text-amber-400'
+                    note.isBookmarked ? 'text-amber-500 fill-amber-500' : 'text-slate-400 hover:text-amber-500'
                   }`}
                 >
                   <Bookmark className="w-4 h-4" />
                 </button>
               </div>
 
-              <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">{note.title}</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{note.description}</p>
+              <h3 className="font-bold text-base text-slate-900">{note.title}</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">{note.description}</p>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+            <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
               <div className="flex items-center justify-between text-[11px] text-slate-400">
                 <span>By {note.uploadedBy.name}</span>
                 <span>{note.createdAt}</span>
@@ -140,9 +140,9 @@ export const NotesPage: React.FC = () => {
                 href={note.url}
                 target="_blank"
                 rel="noreferrer"
-                className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-semibold flex items-center justify-center space-x-1.5 transition-colors"
+                className="w-full py-2 bg-slate-50 hover:bg-blue-50 hover:text-[#0062E0] border border-slate-200 text-slate-700 rounded-xl font-semibold flex items-center justify-center space-x-1.5 transition-colors"
               >
-                <ExternalLink className="w-4 h-4 text-indigo-400" />
+                <ExternalLink className="w-4 h-4 text-[#0062E0]" />
                 <span>Open Material {note.fileSize ? `(${note.fileSize})` : ''}</span>
               </a>
             </div>
@@ -152,30 +152,30 @@ export const NotesPage: React.FC = () => {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 text-xs">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Upload Learning Resource</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 text-xs">
+            <h2 className="text-lg font-bold text-slate-900">Upload Learning Resource</h2>
 
             <form onSubmit={handleUploadSubmit} className="space-y-3">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Resource Title</label>
+                <label className="block text-slate-700 font-semibold mb-1">Resource Title</label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Playwright Page Object Model Architecture PDF"
-                  className="w-full p-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100"
+                  className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-1 focus:ring-[#0062E0] transition-colors"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Type</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Type</label>
                   <select
                     value={type}
                     onChange={(e) => setType(e.target.value as any)}
-                    className="w-full p-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100"
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-[#0062E0] focus:ring-1 focus:ring-[#0062E0] transition-colors"
                   >
                     <option value="PDF">PDF Document</option>
                     <option value="VIDEO">Video Lecture</option>
@@ -184,11 +184,11 @@ export const NotesPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Category</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Category</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full p-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100"
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-[#0062E0] focus:ring-1 focus:ring-[#0062E0] transition-colors"
                   >
                     <option value="Selenium">Selenium</option>
                     <option value="Playwright">Playwright</option>
@@ -198,38 +198,38 @@ export const NotesPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Resource URL / Link</label>
+                <label className="block text-slate-700 font-semibold mb-1">Resource URL / Link</label>
                 <input
                   type="url"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://testverse.io/materials/guide.pdf"
-                  className="w-full p-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100"
+                  className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-1 focus:ring-[#0062E0] transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Description</label>
+                <label className="block text-slate-700 font-semibold mb-1">Description</label>
                 <textarea
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Brief summary of learning material..."
-                  className="w-full p-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100"
+                  className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-1 focus:ring-[#0062E0] transition-colors"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2">
+              <div className="pt-3 border-t border-slate-200 flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg font-semibold"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-semibold"
+                  className="px-5 py-2 bg-[#0062E0] hover:bg-[#0050B8] text-white rounded-lg font-semibold shadow-sm transition-colors"
                 >
                   Publish Material
                 </button>

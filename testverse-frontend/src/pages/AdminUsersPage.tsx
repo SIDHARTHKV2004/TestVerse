@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Check, X, Clock, AlertCircle, RefreshCw, Trash2, UserCheck, UserX, Shield } from 'lucide-react';
+import { User, Check, X, Clock, AlertCircle, RefreshCw, Trash2, UserCheck, UserX, Shield, GraduationCap } from 'lucide-react';
 
 interface UserData {
     id: number;
@@ -8,7 +8,21 @@ interface UserData {
     name: string;
     role: string;
     status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED';
+    department?: string;
+    mentor?: {
+        id: number;
+        name: string;
+        email?: string;
+        department?: string;
+    } | null;
     createdAt: string;
+}
+
+interface MentorOption {
+    id: string;
+    name: string;
+    department?: string;
+    activeCount?: number;
 }
 
 // Backend URL
@@ -23,6 +37,14 @@ const AdminUsersPage: React.FC = () => {
     const [actionLoading, setActionLoading] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
+
+    // Mentor assignment state
+    const [mentorModalUser, setMentorModalUser] = useState<UserData | null>(null);
+    const [availableMentors, setAvailableMentors] = useState<MentorOption[]>([]);
+    const [selectedMentorId, setSelectedMentorId] = useState<string>('');
+    const [mentorLoading, setMentorLoading] = useState(false);
+    const [mentorSubmitting, setMentorSubmitting] = useState(false);
+    const [mentorModalError, setMentorModalError] = useState<string | null>(null);
 
     useEffect(() => {
         fetchUsers();
@@ -224,22 +246,90 @@ const AdminUsersPage: React.FC = () => {
         }
     };
 
+    // ── Mentor Modal Handlers ────────────────────────────────────────────────
+    const handleOpenMentorModal = async (targetUser: UserData): Promise<void> => {
+        setMentorModalUser(targetUser);
+        setSelectedMentorId(targetUser.mentor?.id ? String(targetUser.mentor.id) : '');
+        setMentorModalError(null);
+        setMentorLoading(true);
+
+        const department = targetUser.role === 'TESTER' ? 'TESTING' : 'DEVELOPMENT';
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/mentors?department=${encodeURIComponent(department)}`);
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(errText || 'Failed to load mentors');
+            }
+            const data = await response.json();
+            setAvailableMentors(data || []);
+            if (!targetUser.mentor?.id && data && data.length === 1) {
+                setSelectedMentorId(String(data[0].id));
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Failed to fetch mentors';
+            setMentorModalError(msg);
+        } finally {
+            setMentorLoading(false);
+        }
+    };
+
+    const handleAssignMentor = async (): Promise<void> => {
+        if (!mentorModalUser || !selectedMentorId) return;
+
+        setMentorSubmitting(true);
+        setMentorModalError(null);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/admin/users/${mentorModalUser.id}/mentor`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    mentorId: selectedMentorId
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to assign mentor');
+            }
+
+            alert('✅ Mentor assigned successfully!');
+            setMentorModalUser(null);
+            await fetchUsers();
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to assign mentor';
+            console.error('❌ Error assigning mentor:', errorMessage);
+            setMentorModalError(errorMessage);
+        } finally {
+            setMentorSubmitting(false);
+        }
+    };
+
+    const handleCloseMentorModal = (): void => {
+        setMentorModalUser(null);
+        setAvailableMentors([]);
+        setSelectedMentorId('');
+        setMentorModalError(null);
+    };
+
     const getStatusBadge = (status: string): string => {
         const styles: Record<string, string> = {
-            'PENDING': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-            'ACTIVE': 'bg-green-500/20 text-green-400 border-green-500/30',
-            'SUSPENDED': 'bg-red-500/20 text-red-400 border-red-500/30',
-            'REJECTED': 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+            'PENDING': 'bg-amber-50 text-amber-700 border-amber-200 font-medium',
+            'ACTIVE': 'bg-emerald-50 text-emerald-700 border-emerald-200 font-medium',
+            'SUSPENDED': 'bg-red-50 text-red-700 border-red-200 font-medium',
+            'REJECTED': 'bg-slate-100 text-slate-600 border-slate-200 font-medium',
         };
-        return styles[status] || 'bg-gray-500/20 text-gray-400';
+        return styles[status] || 'bg-slate-100 text-slate-600 border-slate-200';
     };
 
     const getStatusIcon = (status: string): JSX.Element => {
         switch (status) {
-            case 'PENDING': return <Clock size={14} className="text-yellow-400" />;
-            case 'ACTIVE': return <UserCheck size={14} className="text-green-400" />;
-            case 'SUSPENDED': return <UserX size={14} className="text-red-400" />;
-            case 'REJECTED': return <X size={14} className="text-gray-400" />;
+            case 'PENDING': return <Clock size={14} className="text-amber-600" />;
+            case 'ACTIVE': return <UserCheck size={14} className="text-emerald-600" />;
+            case 'SUSPENDED': return <UserX size={14} className="text-red-600" />;
+            case 'REJECTED': return <X size={14} className="text-slate-500" />;
             default: return <AlertCircle size={14} />;
         }
     };
@@ -251,7 +341,10 @@ const AdminUsersPage: React.FC = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-[#666666]">Loading users...</div>
+                <div className="text-slate-500 flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-[#0062E0] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm font-medium">Loading users...</span>
+                </div>
             </div>
         );
     }
@@ -262,47 +355,47 @@ const AdminUsersPage: React.FC = () => {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">User Management</h1>
-                    <p className="text-[#666666] text-sm">
+                    <h1 className="text-2xl font-bold text-[#0F172A]">User Management</h1>
+                    <p className="text-slate-500 text-sm">
                         {pendingUsers.length} users pending approval • {users.length} total users
                     </p>
-                    <p className="text-xs text-[#666666] mt-1">
+                    <p className="text-xs text-slate-400 mt-1">
                         🔒 Admin accounts cannot be deleted for security reasons
                     </p>
                 </div>
                 <button
                     onClick={fetchUsers}
-                    className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                    className="bg-white hover:bg-slate-50 text-slate-700 border border-[#E2E8F0] px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-xs text-sm font-medium"
                 >
-                    <RefreshCw size={18} />
+                    <RefreshCw size={16} />
                     Refresh
                 </button>
             </div>
 
             {error && (
-                <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-center gap-2">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm flex items-center gap-2">
                     <AlertCircle size={16} />
                     {error}
                 </div>
             )}
 
-            <div className="flex gap-2 border-b border-[#1a1a1a] pb-2">
+            <div className="flex gap-2 border-b border-[#E2E8F0] pb-2">
                 <button
                     onClick={() => setActiveTab('pending')}
-                    className={`px-4 py-2 rounded-lg transition-colors ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                         activeTab === 'pending'
-                            ? 'bg-[#ff6b00] text-white'
-                            : 'text-[#666666] hover:text-white hover:bg-[#1a1a1a]'
+                            ? 'bg-[#0062E0] text-white shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                 >
                     Pending Approvals ({pendingUsers.length})
                 </button>
                 <button
                     onClick={() => setActiveTab('all')}
-                    className={`px-4 py-2 rounded-lg transition-colors ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                         activeTab === 'all'
-                            ? 'bg-[#ff6b00] text-white'
-                            : 'text-[#666666] hover:text-white hover:bg-[#1a1a1a]'
+                            ? 'bg-[#0062E0] text-white shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                 >
                     All Users ({users.length})
@@ -310,18 +403,18 @@ const AdminUsersPage: React.FC = () => {
             </div>
 
             {displayedUsers.length === 0 ? (
-                <div className="text-center py-16 bg-[#111111] border border-[#1a1a1a] rounded-xl">
+                <div className="text-center py-16 bg-white border border-[#E2E8F0] rounded-xl shadow-xs">
                     {activeTab === 'pending' ? (
                         <>
-                            <UserCheck size={48} className="mx-auto mb-3 text-green-500" />
-                            <p className="text-lg text-white">No pending approvals</p>
-                            <p className="text-sm text-[#666666]">All users have been processed</p>
+                            <UserCheck size={48} className="mx-auto mb-3 text-[#00B388]" />
+                            <p className="text-lg font-semibold text-[#0F172A]">No pending approvals</p>
+                            <p className="text-sm text-slate-500">All users have been processed</p>
                         </>
                     ) : (
                         <>
-                            <User size={48} className="mx-auto mb-3 text-[#444444]" />
-                            <p className="text-lg text-white">No users found</p>
-                            <p className="text-sm text-[#666666]">Users will appear here when they register</p>
+                            <User size={48} className="mx-auto mb-3 text-slate-300" />
+                            <p className="text-lg font-semibold text-[#0F172A]">No users found</p>
+                            <p className="text-sm text-slate-500">Users will appear here when they register</p>
                         </>
                     )}
                 </div>
@@ -334,52 +427,70 @@ const AdminUsersPage: React.FC = () => {
                         return (
                             <div
                                 key={userData.id}
-                                className={`bg-[#111111] border rounded-lg p-4 transition-all ${
+                                className={`bg-white border rounded-xl p-4 transition-all shadow-xs ${
                                     isOwnAccount
-                                        ? 'border-[#ff6b00]/30 bg-[#1a1a1a]'
+                                        ? 'border-[#0062E0]/50 bg-blue-50/20'
                                         : isAdminUser
-                                            ? 'border-purple-500/30 bg-[#111111]'
-                                            : 'border-[#1a1a1a] hover:border-[#2a2a2a]'
+                                            ? 'border-indigo-200 bg-white'
+                                            : 'border-[#E2E8F0] hover:border-slate-300'
                                 }`}
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex items-start gap-3">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                            isOwnAccount ? 'bg-[#ff6b00]/20' :
-                                                isAdminUser ? 'bg-purple-500/20' : 'bg-[#1a1a1a]'
+                                            isOwnAccount ? 'bg-[#EFF6FF] border border-[#BFDBFE]' :
+                                                isAdminUser ? 'bg-indigo-50 border border-indigo-200' : 'bg-slate-100 border border-slate-200'
                                         }`}>
                                             {isAdminUser ? (
-                                                <Shield size={18} className={isOwnAccount ? 'text-[#ff6b00]' : 'text-purple-400'} />
+                                                <Shield size={18} className={isOwnAccount ? 'text-[#0062E0]' : 'text-indigo-600'} />
                                             ) : (
-                                                <User size={18} className={isOwnAccount ? 'text-[#ff6b00]' : 'text-[#666666]'} />
+                                                <User size={18} className={isOwnAccount ? 'text-[#0062E0]' : 'text-slate-600'} />
                                             )}
                                         </div>
                                         <div>
-                                            <h3 className="text-white font-medium">
+                                            <h3 className="text-[#0F172A] font-semibold flex items-center gap-1.5">
                                                 {userData.name}
                                                 {isOwnAccount && (
-                                                    <span className="ml-2 text-xs text-[#ff6b00] font-normal">
-                                                        (You)
+                                                    <span className="text-xs bg-[#EFF6FF] text-[#0062E0] font-medium px-2 py-0.5 rounded-full border border-[#BFDBFE]">
+                                                        You
                                                     </span>
                                                 )}
                                                 {!isOwnAccount && isAdminUser && (
-                                                    <span className="ml-2 text-xs text-purple-400 font-normal">
-                                                        (Admin)
+                                                    <span className="text-xs bg-indigo-50 text-indigo-700 font-medium px-2 py-0.5 rounded-full border border-indigo-200">
+                                                        Admin
                                                     </span>
                                                 )}
                                             </h3>
-                                            <p className="text-sm text-[#666666]">{userData.email}</p>
-                                            <div className="flex items-center gap-3 mt-1">
-                                                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                    isAdminUser ? 'bg-purple-500/20 text-purple-400' : 'bg-[#1a1a1a] text-[#666666]'
+                                            <p className="text-sm text-slate-500">{userData.email}</p>
+                                            <div className="flex items-center gap-3 mt-1.5">
+                                                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                                                    isAdminUser ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
                                                 }`}>
                                                     {userData.role}
                                                 </span>
-                                                <span className={`text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 ${getStatusBadge(userData.status)}`}>
+                                                <span className={`text-xs px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${getStatusBadge(userData.status)}`}>
                                                     {getStatusIcon(userData.status)}
                                                     {userData.status}
                                                 </span>
                                             </div>
+
+                                            {(userData.role === 'TESTER' || userData.role === 'DEVELOPER') && (
+                                                <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+                                                    <span className="text-slate-600 flex items-center gap-1">
+                                                        <GraduationCap size={14} className="text-[#0062E0]" />
+                                                        Mentor:
+                                                        <span className={userData.mentor?.name ? "text-[#0062E0] font-semibold" : "text-amber-600 font-medium"}>
+                                                            {userData.mentor?.name || 'Not Assigned'}
+                                                        </span>
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleOpenMentorModal(userData)}
+                                                        className="text-xs px-2.5 py-0.5 bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#0062E0] border border-[#BFDBFE] rounded-full transition-colors flex items-center gap-1 font-medium"
+                                                    >
+                                                        {userData.mentor?.name ? 'Change Mentor' : 'Assign Mentor'}
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -389,7 +500,7 @@ const AdminUsersPage: React.FC = () => {
                                                 <button
                                                     onClick={() => handleApprove(userData.id)}
                                                     disabled={actionLoading === userData.id}
-                                                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                                    className="px-3 py-1.5 bg-[#00B388] hover:bg-[#008766] text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50 font-medium shadow-xs"
                                                 >
                                                     <Check size={14} />
                                                     Approve
@@ -397,7 +508,7 @@ const AdminUsersPage: React.FC = () => {
                                                 <button
                                                     onClick={() => handleReject(userData.id)}
                                                     disabled={actionLoading === userData.id}
-                                                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50 font-medium shadow-xs"
                                                 >
                                                     <X size={14} />
                                                     Reject
@@ -409,7 +520,7 @@ const AdminUsersPage: React.FC = () => {
                                             <button
                                                 onClick={() => handleSuspend(userData.id)}
                                                 disabled={actionLoading === userData.id}
-                                                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50 font-medium shadow-xs"
                                             >
                                                 <UserX size={14} />
                                                 Suspend
@@ -420,7 +531,7 @@ const AdminUsersPage: React.FC = () => {
                                             <button
                                                 onClick={() => handleActivate(userData.id)}
                                                 disabled={actionLoading === userData.id}
-                                                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                                className="px-3 py-1.5 bg-[#00B388] hover:bg-[#008766] text-white rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50 font-medium shadow-xs"
                                             >
                                                 <UserCheck size={14} />
                                                 Activate
@@ -432,7 +543,7 @@ const AdminUsersPage: React.FC = () => {
                                             <button
                                                 onClick={() => handleDeleteUser(userData.id)}
                                                 disabled={actionLoading === userData.id}
-                                                className="px-3 py-1.5 bg-[#1a1a1a] hover:bg-red-600/20 text-[#666666] hover:text-red-400 rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
+                                                className="px-3 py-1.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50 font-medium"
                                             >
                                                 <Trash2 size={14} />
                                                 Delete
@@ -441,7 +552,7 @@ const AdminUsersPage: React.FC = () => {
 
                                         {/* Show "Protected" for admin accounts */}
                                         {!isOwnAccount && isAdminUser && (
-                                            <span className="px-3 py-1.5 bg-purple-500/10 text-purple-400 rounded-lg text-sm flex items-center gap-1 cursor-not-allowed border border-purple-500/20">
+                                            <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm flex items-center gap-1 cursor-not-allowed border border-indigo-200 font-medium">
                                                 <Shield size={14} />
                                                 Protected
                                             </span>
@@ -449,7 +560,7 @@ const AdminUsersPage: React.FC = () => {
 
                                         {/* Show "Your Account" for own account */}
                                         {isOwnAccount && (
-                                            <span className="px-3 py-1.5 bg-[#ff6b00]/10 text-[#ff6b00] rounded-lg text-sm flex items-center gap-1 cursor-not-allowed border border-[#ff6b00]/20">
+                                            <span className="px-3 py-1.5 bg-[#EFF6FF] text-[#0062E0] rounded-lg text-sm flex items-center gap-1 cursor-not-allowed border border-[#BFDBFE] font-medium">
                                                 <UserCheck size={14} />
                                                 Your Account
                                             </span>
@@ -459,6 +570,107 @@ const AdminUsersPage: React.FC = () => {
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* ── Mentor Assignment / Reassignment Modal ── */}
+            {mentorModalUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <div className="bg-white border border-[#E2E8F0] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+                            <div className="flex items-center gap-2">
+                                <GraduationCap size={20} className="text-[#0062E0]" />
+                                <div>
+                                    <h2 className="text-base font-bold text-[#0F172A]">
+                                        {mentorModalUser.mentor ? 'Change Mentor' : 'Assign Mentor'}
+                                    </h2>
+                                    <p className="text-xs text-slate-500">
+                                        {mentorModalUser.name} • {mentorModalUser.role} ({mentorModalUser.role === 'TESTER' ? 'TESTING' : 'DEVELOPMENT'})
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleCloseMentorModal}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {mentorModalError && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs flex items-center gap-2">
+                                <AlertCircle size={14} className="flex-shrink-0" />
+                                <span>{mentorModalError}</span>
+                            </div>
+                        )}
+
+                        {mentorLoading ? (
+                            <div className="py-8 text-center text-slate-500 text-sm">
+                                Loading {mentorModalUser.role === 'TESTER' ? 'Testing' : 'Development'} mentors...
+                            </div>
+                        ) : availableMentors.length === 0 ? (
+                            <div className="py-6 text-center text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                No active {mentorModalUser.role === 'TESTER' ? 'Testing' : 'Development'} mentors available.
+                            </div>
+                        ) : (
+                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                                <label className="text-xs text-slate-600 font-medium block">
+                                    Select an active {mentorModalUser.role === 'TESTER' ? 'Testing' : 'Development'} mentor:
+                                </label>
+                                {availableMentors.map((m) => {
+                                    const isSelected = selectedMentorId === String(m.id);
+                                    const isCurrent = mentorModalUser.mentor?.id && String(mentorModalUser.mentor.id) === String(m.id);
+
+                                    return (
+                                        <div
+                                            key={m.id}
+                                            onClick={() => setSelectedMentorId(String(m.id))}
+                                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                                                isSelected
+                                                    ? 'bg-[#EFF6FF] border-[#0062E0] shadow-sm'
+                                                    : 'bg-[#F8FAFC] border-[#E2E8F0] hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-sm font-semibold ${isSelected ? 'text-[#0062E0]' : 'text-[#0F172A]'}`}>{m.name}</span>
+                                                    {isCurrent && (
+                                                        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium border border-blue-200">
+                                                            Current
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-slate-500 mt-0.5">
+                                                    {m.department} • <span className="text-[#0062E0] font-semibold">{m.activeCount ?? 0}</span> active {mentorModalUser.role === 'TESTER' ? 'Testers' : 'Developers'}
+                                                </div>
+                                            </div>
+                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                                isSelected ? 'border-[#0062E0] bg-[#0062E0]' : 'border-slate-300 bg-white'
+                                            }`}>
+                                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#F1F5F9]">
+                            <button
+                                onClick={handleCloseMentorModal}
+                                className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAssignMentor}
+                                disabled={!selectedMentorId || mentorSubmitting || mentorLoading}
+                                className="px-4 py-2 bg-[#0062E0] hover:bg-[#0050B8] text-white font-medium text-xs rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                            >
+                                {mentorSubmitting ? 'Saving...' : 'Confirm Assignment'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

@@ -135,17 +135,19 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
   if (!isOpen) return null;
 
   return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">🐛 Report a Bug</h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-white">
+      <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#F1F5F9]">
+            <h2 className="text-xl font-bold text-[#0F172A] flex items-center gap-2">
+              <span className="text-[#0062E0]">🐛</span> Report a Bug
+            </h2>
+            <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {error && (
-              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
                 ❌ {error}
               </div>
           )}
@@ -154,24 +156,24 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
             <div className="space-y-4">
               {/* Title */}
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Title *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
                 <input
                     type="text"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                    className="w-full px-4 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                     required
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Description *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description *</label>
                 <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
-                    className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                    className="w-full px-4 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                     required
                 />
               </div>
@@ -179,11 +181,11 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
               {/* Status, Priority, Severity */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                   <select
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                      className="w-full px-3 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                   >
                     <option value="OPEN">Open</option>
                     <option value="IN_PROGRESS">In Progress</option>
@@ -192,11 +194,11 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Priority</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
                   <select
                       value={formData.priority}
                       onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                      className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                      className="w-full px-3 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                   >
                     <option value="LOW">Low</option>
                     <option value="MEDIUM">Medium</option>
@@ -205,11 +207,11 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Severity</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Severity</label>
                   <select
                       value={formData.severity}
                       onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-                      className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                      className="w-full px-3 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                   >
                     <option value="LOW">Low</option>
                     <option value="MEDIUM">Medium</option>
@@ -221,49 +223,49 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
 
               {/* Steps, Expected, Actual */}
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Steps to Reproduce</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Steps to Reproduce</label>
                 <textarea
                     value={formData.stepsToReproduce}
                     onChange={(e) => setFormData({ ...formData, stepsToReproduce: e.target.value })}
                     rows={2}
-                    className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                    className="w-full px-4 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                     placeholder="1. Go to... 2. Click on..."
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Expected Result</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Expected Result</label>
                 <input
                     type="text"
                     value={formData.expectedResult}
                     onChange={(e) => setFormData({ ...formData, expectedResult: e.target.value })}
-                    className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                    className="w-full px-4 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Actual Result</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Actual Result</label>
                 <input
                     type="text"
                     value={formData.actualResult}
                     onChange={(e) => setFormData({ ...formData, actualResult: e.target.value })}
-                    className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                    className="w-full px-4 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                 />
               </div>
 
               {/* Project Name */}
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Project Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Project Name</label>
                 <input
                     type="text"
                     value={formData.projectName}
                     onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
-                    className="w-full px-4 py-2 bg-black border border-[#1a1a1a] rounded-lg text-white focus:outline-none focus:border-[#ff6b00]"
+                    className="w-full px-4 py-2.5 bg-white border border-[#CBD5E1] rounded-lg text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all text-sm"
                     placeholder="Project name (optional)"
                 />
               </div>
 
               {/* Image Upload - UI only */}
               <div>
-                <label className="block text-sm text-slate-400 mb-1">Screenshot / Image</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Screenshot / Image</label>
                 <div className="relative">
                   <input
                       type="file"
@@ -271,9 +273,9 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
                       onChange={handleImageChange}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   />
-                  <div className="border-2 border-dashed border-[#1a1a1a] rounded-lg p-4 text-center hover:border-[#ff6b00] transition-colors">
-                    <Upload className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                    <p className="text-slate-400 text-sm">Click to upload an image (UI only)</p>
+                  <div className="border-2 border-dashed border-[#CBD5E1] rounded-xl p-4 text-center hover:border-[#0062E0] hover:bg-[#EFF6FF]/40 transition-all">
+                    <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <p className="text-slate-700 text-sm font-medium">Click to upload an image (UI only)</p>
                     <p className="text-slate-500 text-xs mt-1">Max size: 5MB (JPG, PNG, GIF)</p>
                   </div>
                 </div>
@@ -283,12 +285,12 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
                       <img
                           src={imagePreview}
                           alt="Bug screenshot"
-                          className="w-full max-h-48 object-contain rounded-lg border border-[#1a1a1a]"
+                          className="w-full max-h-48 object-contain rounded-lg border border-[#E2E8F0] shadow-sm"
                       />
                       <button
                           type="button"
                           onClick={removeImage}
-                          className="absolute top-2 right-2 p-1 bg-red-500/80 hover:bg-red-500 rounded-full transition-colors"
+                          className="absolute top-2 right-2 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-md transition-colors"
                       >
                         <X className="w-4 h-4 text-white" />
                       </button>
@@ -297,18 +299,18 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-6 pt-2">
               <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-[#ff6b00] hover:bg-[#cc5500] text-white rounded-lg transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-[#0062E0] hover:bg-[#0050B8] text-white rounded-lg transition-all font-medium shadow-sm hover:shadow disabled:opacity-50"
               >
                 {loading ? 'Creating...' : 'Create Bug Report'}
               </button>
               <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white rounded-lg transition-colors"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors border border-[#E2E8F0] font-medium"
               >
                 Cancel
               </button>

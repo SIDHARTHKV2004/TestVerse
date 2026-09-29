@@ -10,7 +10,7 @@ import java.util.List;
 public interface AutomationScriptRepository
         extends JpaRepository<AutomationScriptEntity, String> {
 
-    List<AutomationScriptEntity> findByCreatedById(String userId);
+    List<AutomationScriptEntity> findByCreatedById(Long userId);
 
     List<AutomationScriptEntity> findByProjectId(String projectId);
 

@@ -19,18 +19,18 @@ const ANIM_STYLES = `
 .tv-card-border {
   background: conic-gradient(
     from var(--tv-angle) at 50% 50%,
-    #00f0ff 0deg,
+    #0062e0 0deg,
     #38bdf8 50deg,
-    #3b82f6 130deg,
-    #8b5cf6 200deg,
-    rgba(0,0,0,0) 250deg,
-    rgba(0,0,0,0) 320deg,
-    #00f0ff 360deg
+    #00b388 130deg,
+    #10b981 200deg,
+    rgba(255,255,255,0) 250deg,
+    rgba(255,255,255,0) 320deg,
+    #0062e0 360deg
   );
-  animation: tv-border-spin 4s linear infinite;
+  animation: tv-border-spin 5s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .tv-card-border { animation: none !important; background: rgba(56,189,248,0.18) !important; }
+  .tv-card-border { animation: none !important; background: rgba(0,98,224,0.18) !important; }
 }
 
 @keyframes tv-fadeUp {
@@ -327,7 +327,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
       <div
         style={{
           minHeight: '100vh',
-          background: 'linear-gradient(145deg, #03050a 0%, #050816 45%, #03050e 100%)',
+          background: 'linear-gradient(145deg, #F8FAFC 0%, #EFF6FF 50%, #F0FDF9 100%)',
           display: 'flex',
           flexDirection: 'column',
           position: 'relative',
@@ -356,7 +356,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
             width: '420px',
             height: '420px',
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(56,189,248,0.06) 0%, transparent 65%)',
+            background: 'radial-gradient(circle, rgba(0,98,224,0.06) 0%, transparent 65%)',
             transform: 'translate(-50%, -50%)',
             pointerEvents: 'none',
             zIndex: 2,
@@ -370,7 +370,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
           style={{
             position: 'absolute',
             inset: 0,
-            backgroundImage: 'radial-gradient(circle, rgba(56,189,248,0.055) 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(circle, rgba(0,98,224,0.06) 1px, transparent 1px)',
             backgroundSize: '30px 30px',
             animation: 'tv-gridShimmer 7s ease-in-out infinite',
             pointerEvents: 'none',
@@ -384,8 +384,8 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
             position: 'absolute',
             inset: 0,
             backgroundImage: `
-              linear-gradient(rgba(56,189,248,0.022) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(56,189,248,0.022) 1px, transparent 1px)
+              linear-gradient(rgba(0,98,224,0.03) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0,98,224,0.03) 1px, transparent 1px)
             `,
             backgroundSize: '72px 72px',
             pointerEvents: 'none',
@@ -394,35 +394,35 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
         />
 
         {/* ── Atmospheric glow orbs ────────────────────────────────────── */}
-        {/* Cyan — bottom left */}
+        {/* Blue — bottom left */}
         <div className="tv-anim" style={{
           position: 'absolute', bottom: '-200px', left: '-140px',
           width: '680px', height: '680px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(0,240,255,0.14) 0%, rgba(56,189,248,0.07) 40%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(0,98,224,0.08) 0%, rgba(56,189,248,0.04) 40%, transparent 70%)',
           animation: 'tv-orbDrift 16s ease-in-out infinite',
           pointerEvents: 'none', zIndex: 0,
         }} />
-        {/* Blue — mid left */}
+        {/* Teal — mid left */}
         <div className="tv-anim" style={{
           position: 'absolute', top: '15%', left: '-100px',
           width: '500px', height: '500px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 65%)',
+          background: 'radial-gradient(circle, rgba(0,179,136,0.07) 0%, transparent 65%)',
           animation: 'tv-orbDrift2 20s ease-in-out infinite 3s',
           pointerEvents: 'none', zIndex: 0,
         }} />
-        {/* Violet — top */}
+        {/* Blue tint — top */}
         <div className="tv-anim" style={{
           position: 'absolute', top: '-120px', left: '20%',
           width: '560px', height: '560px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 68%)',
+          background: 'radial-gradient(circle, rgba(0,98,224,0.06) 0%, transparent 68%)',
           animation: 'tv-orbDrift3 24s ease-in-out infinite 6s',
           pointerEvents: 'none', zIndex: 0,
         }} />
-        {/* Cyan accent — center */}
+        {/* Teal accent — center */}
         <div className="tv-anim" style={{
           position: 'absolute', top: '42%', left: '18%',
           width: '320px', height: '320px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(0,240,255,0.07) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(0,179,136,0.05) 0%, transparent 70%)',
           animation: 'tv-orbDrift 13s ease-in-out infinite 2s',
           pointerEvents: 'none', zIndex: 0,
         }} />
@@ -456,15 +456,15 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
           className="tv-anim"
           style={{
             position: 'relative',
-            zIndex: 50,
+            zIndex: 10,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '16px 28px',
-            borderBottom: '1px solid rgba(56,189,248,0.08)',
+            borderBottom: '1px solid #E2E8F0',
+            background: 'rgba(255, 255, 255, 0.8)',
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
-            animation: 'tv-headerGlow 5s ease-in-out infinite, tv-fadeIn 0.5s ease both',
           }}
         >
           {/* Left: logo + wordmark */}
@@ -472,12 +472,12 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
             <div
               className="tv-anim"
               style={{
-                width: '38px', height: '38px',
-                background: 'linear-gradient(135deg, #38bdf8 0%, #3b82f6 55%, #8b5cf6 100%)',
+                width: '36px', height: '36px',
+                background: 'linear-gradient(135deg, #0062E0 0%, #00B388 100%)',
                 borderRadius: '10px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 900, fontSize: '14px', color: '#000',
-                animation: 'tv-logoPulse 4s ease-in-out infinite',
+                fontWeight: 900, fontSize: '13px', color: '#FFFFFF',
+                boxShadow: '0 2px 8px rgba(0, 98, 224, 0.3)',
                 flexShrink: 0,
               }}
             >
@@ -485,9 +485,9 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
             </div>
             <div>
               <div style={{ fontSize: '17px', fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1 }}>
-                <span style={{ color: '#fff' }}>TEST</span>
+                <span style={{ color: '#0F172A' }}>TEST</span>
                 <span style={{
-                  background: 'linear-gradient(90deg, #38bdf8, #3b82f6, #8b5cf6)',
+                  background: 'linear-gradient(90deg, #0062E0, #00B388)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
@@ -495,7 +495,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
               </div>
               <div style={{
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '9px', color: '#334155',
+                fontSize: '9px', color: '#64748B',
                 letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: '2px',
               }}>
                 Software Quality Workspace
@@ -506,18 +506,18 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
           {/* Right: status chip */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: '7px',
-            background: 'rgba(52,211,153,0.07)',
-            border: '1px solid rgba(52,211,153,0.2)',
+            background: '#E6F9F4',
+            border: '1px solid #A7F3D0',
             borderRadius: '20px', padding: '5px 12px',
           }}>
             <span style={{
               width: '7px', height: '7px', borderRadius: '50%',
-              background: '#34d399', display: 'inline-block',
+              background: '#00B388', display: 'inline-block',
               animation: 'tv-dotPulseGreen 2s ease-in-out infinite',
             }} />
             <span style={{
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '10px', color: '#34d399', letterSpacing: '0.1em',
+              fontSize: '10px', color: '#008766', letterSpacing: '0.1em', fontWeight: 600,
             }}>
               AUTH CLUSTER : READY
             </span>
@@ -531,7 +531,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
             display: 'flex',
             alignItems: 'stretch',
             position: 'relative',
-            zIndex: 10,
+            zIndex: 20,
           }}
         >
           {/* ════════════════════════════════════════════════════════════
@@ -554,7 +554,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
             <div style={{
               position: 'absolute', right: '-1px', top: '10%',
               width: '1px', height: '80%',
-              background: 'linear-gradient(180deg, transparent, rgba(56,189,248,0.35), rgba(139,92,246,0.25), transparent)',
+              background: 'linear-gradient(180deg, transparent, #E2E8F0, transparent)',
               pointerEvents: 'none',
             }} />
 
@@ -569,25 +569,24 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
             >
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: '7px',
-                background: 'rgba(56,189,248,0.08)',
-                border: '1px solid rgba(56,189,248,0.22)',
+                background: '#EFF6FF',
+                border: '1px solid #BFDBFE',
                 borderRadius: '20px', padding: '5px 14px',
-                animation: 'tv-pillGlow 3s ease-in-out infinite',
               }}>
                 <span style={{
-                  width: '7px', height: '7px', borderRadius: '50%', background: '#38bdf8',
-                  display: 'inline-block', animation: 'tv-dotPulse 2s ease-in-out infinite',
+                  width: '7px', height: '7px', borderRadius: '50%', background: '#0062E0',
+                  display: 'inline-block',
                 }} />
                 <span style={{
                   fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '10px', color: '#38bdf8', letterSpacing: '0.12em',
+                  fontSize: '10px', color: '#0062E0', letterSpacing: '0.12em', fontWeight: 600,
                 }}>
                   WORKSPACE ACTIVE
                 </span>
               </div>
               <span style={{
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '10px', color: '#1e3a4a', letterSpacing: '0.08em',
+                fontSize: '10px', color: '#64748B', letterSpacing: '0.08em',
               }}>
                 NODE-01
               </span>
@@ -599,9 +598,9 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
               style={{
                 animation: 'tv-fadeUp 0.65s cubic-bezier(0.22,1,0.36,1) 0.1s both',
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '11px', color: '#334155',
+                fontSize: '11px', color: '#64748B',
                 letterSpacing: '0.18em', textTransform: 'uppercase',
-                marginBottom: '16px',
+                marginBottom: '16px', fontWeight: 600,
               }}
             >
               SOFTWARE QUALITY WORKSPACE
@@ -622,10 +621,10 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
                       fontWeight: 900,
                       fontSize: 'clamp(38px, 4.2vw, 58px)',
                       background: i === 0
-                        ? 'linear-gradient(90deg, #ffffff, #e2e8f0)'
+                        ? 'linear-gradient(90deg, #0F172A, #334155)'
                         : i === 1
-                        ? 'linear-gradient(90deg, #38bdf8, #3b82f6)'
-                        : 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+                        ? 'linear-gradient(90deg, #0062E0, #0284C7)'
+                        : 'linear-gradient(90deg, #00B388, #10B981)',
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
                       backgroundClip: 'text',
@@ -637,109 +636,54 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
               </h1>
             </div>
 
-            {/* ── Description ── */}
-            <div
-              className="tv-anim"
-              style={{
-                animation: 'tv-fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.22s both',
-                marginBottom: '36px',
-              }}
-            >
-              <p style={{
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '14px', color: '#64748b', lineHeight: 1.65,
-                margin: 0, maxWidth: '340px',
-              }}>
-                {subtitle}
-              </p>
-            </div>
-
-            {/* ── Status cards ── */}
-            <div
-              className="tv-anim"
-              style={{
-                animation: 'tv-fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.28s both',
-                display: 'flex', gap: '10px', marginBottom: '28px', flexWrap: 'wrap',
-              }}
-            >
-              {STATUS_ITEMS.map((item, i) => (
-                <div key={i} style={{
-                  background: 'rgba(56,189,248,0.04)',
-                  border: '1px solid rgba(56,189,248,0.1)',
-                  borderRadius: '10px', padding: '10px 14px',
-                  display: 'flex', flexDirection: 'column', gap: '5px', flex: 1, minWidth: '90px',
-                }}>
-                  <span style={{
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: '9px', color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase',
-                  }}>
-                    {item.label}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{
-                      width: '6px', height: '6px', borderRadius: '50%',
-                      background: item.color, display: 'inline-block',
-                      animation: `${item.anim} 2.2s ease-in-out infinite ${i * 0.4}s`,
-                    }} />
-                    <span style={{
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: '10px', color: item.color, letterSpacing: '0.08em',
-                    }}>
-                      {item.value}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* ── Terminal panel ── */}
+                    {/* ── Terminal panel ── */}
             <div
               className="tv-anim"
               style={{
                 animation: 'tv-fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.34s both',
-                background: 'rgba(0,0,0,0.5)',
-                border: '1px solid rgba(56,189,248,0.1)',
+                background: '#FFFFFF',
+                border: '1px solid #E2E8F0',
                 borderRadius: '10px',
                 overflow: 'hidden',
                 marginBottom: '24px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
               }}
             >
               {/* Terminal header */}
               <div style={{
-                background: 'rgba(56,189,248,0.05)',
-                borderBottom: '1px solid rgba(56,189,248,0.08)',
+                background: '#F8FAFC',
+                borderBottom: '1px solid #E2E8F0',
                 padding: '8px 14px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <span style={{
                   fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '9px', color: '#334155', letterSpacing: '0.12em',
+                  fontSize: '9px', color: '#64748B', letterSpacing: '0.12em', fontWeight: 600,
                 }}>
                   TESTVERSE CORE / AUTH MODULE
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{
                     fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: '9px', color: '#38bdf8', letterSpacing: '0.1em',
+                    fontSize: '9px', color: '#0062E0', letterSpacing: '0.1em', fontWeight: 600,
                   }}>
                     LIVE STREAM
                   </span>
                   <span style={{
                     width: '5px', height: '5px', borderRadius: '50%',
-                    background: '#38bdf8', display: 'inline-block',
-                    animation: 'tv-dotPulse 1.5s ease-in-out infinite',
+                    background: '#0062E0', display: 'inline-block',
                   }} />
                 </div>
               </div>
               {/* Simulation label */}
               <div style={{
                 padding: '3px 14px',
-                background: 'rgba(139,92,246,0.06)',
-                borderBottom: '1px solid rgba(139,92,246,0.08)',
+                background: '#EFF6FF',
+                borderBottom: '1px solid #BFDBFE',
               }}>
                 <span style={{
                   fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '8px', color: '#4c3d7a', letterSpacing: '0.1em',
+                  fontSize: '8px', color: '#0062E0', letterSpacing: '0.1em', fontWeight: 600,
                 }}>
                   ⓘ SIMULATION — UI STATUS DISPLAY
                 </span>
@@ -752,6 +696,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
                   height: '130px',
                   overflowY: 'hidden',
                   display: 'flex', flexDirection: 'column', gap: '3px',
+                  background: '#FFFFFF',
                 }}
               >
                 {termLines.map((line, i) => {
@@ -769,13 +714,13 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
                         display: 'flex', gap: '8px',
                       }}
                     >
-                      <span style={{ color: '#38bdf8', minWidth: '50px' }}>[{bracket}]</span>
-                      <span style={{ color: isLatest ? '#94a3b8' : '#475569' }}>
+                      <span style={{ color: '#0062E0', minWidth: '50px', fontWeight: 600 }}>[{bracket}]</span>
+                      <span style={{ color: isLatest ? '#0F172A' : '#64748B' }}>
                         {rest}
                         {isLatest && (
                           <span style={{
                             display: 'inline-block', width: '6px', height: '11px',
-                            background: '#38bdf8', marginLeft: '2px', verticalAlign: 'middle',
+                            background: '#0062E0', marginLeft: '2px', verticalAlign: 'middle',
                             animation: 'tv-termCursor 0.9s step-end infinite',
                           }} />
                         )}
@@ -797,11 +742,12 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
               {BADGES.map((badge, i) => (
                 <span key={i} style={{
                   fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: '10px', color: '#334155',
-                  background: 'rgba(56,189,248,0.04)',
-                  border: '1px solid rgba(56,189,248,0.08)',
+                  fontSize: '10px', color: '#475569',
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
                   borderRadius: '6px', padding: '4px 10px',
                   letterSpacing: '0.05em',
+                  fontWeight: 500,
                 }}>
                   {badge}
                 </span>
@@ -818,7 +764,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '32px 24px 48px',
+              padding: '84px 24px 48px',
               minHeight: '100%',
             }}
           >
@@ -840,7 +786,7 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
                 width: '100%',
                 maxWidth: '440px',
                 position: 'relative',
-                zIndex: 5,
+                zIndex: 25,
                 animation: 'tv-fadeUp 0.7s cubic-bezier(0.22,1,0.36,1) 0.08s both',
                 willChange: 'transform',
               }}
@@ -860,19 +806,18 @@ const AuthBackground: React.FC<AuthBackgroundProps> = ({
                 {/* ── Inner glass card ── */}
                 <div
                   style={{
-                    background: 'rgba(3,5,14,0.88)',
+                    background: '#FFFFFF',
                     borderRadius: '19px',
                     position: 'relative',
-                    animation: 'tv-cardGlow 5s ease-in-out infinite',
-                    backdropFilter: 'blur(24px)',
-                    WebkitBackdropFilter: 'blur(24px)',
+                    boxShadow: '0 20px 50px rgba(0, 98, 224, 0.08)',
+                    border: '1px solid #E2E8F0',
                     overflow: 'hidden',
                   }}
                 >
                   {/* Inset top highlight */}
                   <div style={{
                     position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px',
-                    background: 'linear-gradient(90deg, transparent, rgba(56,189,248,0.3), transparent)',
+                    background: 'linear-gradient(90deg, transparent, rgba(0,98,224,0.3), transparent)',
                     zIndex: 1,
                   }} />
 

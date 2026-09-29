@@ -31,13 +31,13 @@ interface KanbanBoardProps {
 }
 
 const STATUS_COLUMNS: { status: TaskStatus; label: string; icon: any; color: string; bg: string }[] = [
-  { status: 'Not Started', label: 'Not Started', icon: Clock, color: 'text-slate-400', bg: 'bg-slate-900/60' },
-  { status: 'Accepted', label: 'Accepted', icon: Check, color: 'text-blue-400', bg: 'bg-blue-950/30' },
-  { status: 'In Progress', label: 'In Progress', icon: Play, color: 'text-indigo-400', bg: 'bg-indigo-950/30' },
-  { status: 'Need Help', label: 'Need Help', icon: HelpCircle, color: 'text-rose-400', bg: 'bg-rose-950/30' },
-  { status: 'Waiting For Review', label: 'Waiting Review', icon: Eye, color: 'text-amber-400', bg: 'bg-amber-950/30' },
-  { status: 'Changes Requested', label: 'Changes Req.', icon: RotateCcw, color: 'text-orange-400', bg: 'bg-orange-950/30' },
-  { status: 'Completed', label: 'Completed', icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-950/30' }
+  { status: 'Not Started', label: 'Not Started', icon: Clock, color: 'text-slate-500', bg: 'bg-slate-50' },
+  { status: 'Accepted', label: 'Accepted', icon: Check, color: 'text-blue-600', bg: 'bg-blue-50/40' },
+  { status: 'In Progress', label: 'In Progress', icon: Play, color: 'text-[#0062E0]', bg: 'bg-blue-50/70' },
+  { status: 'Need Help', label: 'Need Help', icon: HelpCircle, color: 'text-rose-600', bg: 'bg-rose-50/40' },
+  { status: 'Waiting For Review', label: 'Waiting Review', icon: Eye, color: 'text-amber-600', bg: 'bg-amber-50/40' },
+  { status: 'Changes Requested', label: 'Changes Req.', icon: RotateCcw, color: 'text-orange-600', bg: 'bg-orange-50/40' },
+  { status: 'Completed', label: 'Completed', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50/40' }
 ];
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ 
@@ -56,10 +56,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
   const getPriorityBadgeClass = (priority: Priority) => {
     switch (priority) {
-      case 'Urgent': return 'bg-rose-950/80 text-rose-300 border-rose-800/80 font-bold';
-      case 'High': return 'bg-amber-950/80 text-amber-300 border-amber-800/80';
-      case 'Medium': return 'bg-blue-950/80 text-blue-300 border-blue-800/80';
-      default: return 'bg-slate-800/80 text-slate-400 border-slate-700/80';
+      case 'Urgent': return 'bg-red-50 text-red-700 border-red-200 font-bold';
+      case 'High': return 'bg-amber-50 text-amber-700 border-amber-200 font-medium';
+      case 'Medium': return 'bg-blue-50 text-blue-700 border-blue-200 font-medium';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200 font-medium';
     }
   };
 
@@ -67,20 +67,20 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     <div className="space-y-4">
       
       {/* Board Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900/90 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex items-center space-x-3 text-xs">
-          <div className="flex items-center space-x-1.5 text-slate-500 font-semibold">
-            <Filter className="w-4 h-4 text-indigo-500" />
+          <div className="flex items-center space-x-1.5 text-slate-600 font-semibold">
+            <Filter className="w-4 h-4 text-[#0062E0]" />
             <span>Priority Filter:</span>
           </div>
           {['ALL', 'Low', 'Medium', 'High', 'Urgent'].map((p) => (
             <button
               key={p}
               onClick={() => setPriorityFilter(p)}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
                 priorityFilter === p
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  ? 'bg-[#0062E0] text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {p}
@@ -91,7 +91,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         {role === 'MENTOR' && onCreateTaskClick && (
           <button
             onClick={onCreateTaskClick}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/30 transition-all"
+            className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#0062E0] hover:bg-[#0050B8] text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>Create New Task</span>
@@ -108,17 +108,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           return (
             <div 
               key={col.status} 
-              className={`rounded-xl border border-slate-200 dark:border-slate-800/80 p-2.5 flex flex-col kanban-col transition-all ${col.bg}`}
+              className={`rounded-2xl border border-slate-200/80 p-3 flex flex-col kanban-col transition-all ${col.bg}`}
             >
               {/* Column Header */}
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800/60">
+              <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200/80">
                 <div className="flex items-center space-x-1.5">
                   <ColumnIcon className={`w-4 h-4 ${col.color}`} />
-                  <span className="font-semibold text-xs text-slate-800 dark:text-slate-200 truncate">
+                  <span className="font-semibold text-xs text-slate-900 truncate">
                     {col.label}
                   </span>
                 </div>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200 shadow-xs">
                   {columnTasks.length}
                 </span>
               </div>
@@ -126,7 +126,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               {/* Task Cards */}
               <div className="flex-1 space-y-2.5 overflow-y-auto max-h-[700px] pr-1">
                 {columnTasks.length === 0 ? (
-                  <div className="h-28 border border-dashed border-slate-300 dark:border-slate-800 rounded-lg flex items-center justify-center text-[11px] text-slate-400 italic">
+                  <div className="h-28 border border-dashed border-slate-300 rounded-xl flex items-center justify-center text-[11px] text-slate-400 italic bg-white/50">
                     No tasks
                   </div>
                 ) : (
@@ -134,7 +134,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     <div
                       key={task.id}
                       onClick={() => onTaskClick(task)}
-                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm hover:shadow-md hover:border-indigo-500/50 cursor-pointer transition-all group space-y-2 relative"
+                      className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs hover:shadow-md hover:border-[#0062E0] cursor-pointer transition-all group space-y-2 relative"
                     >
                       {/* Priority & Module */}
                       <div className="flex items-center justify-between">
@@ -147,17 +147,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       </div>
 
                       {/* Title */}
-                      <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-100 group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug">
+                      <h4 className="text-xs font-semibold text-slate-900 group-hover:text-[#0062E0] transition-colors line-clamp-2 leading-snug">
                         {task.title}
                       </h4>
 
                       {/* Project Name */}
-                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium truncate">
+                      <div className="text-[10px] text-[#0062E0] font-medium truncate">
                         {task.projectName}
                       </div>
 
                       {/* Meta Footer */}
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
                         <div className="flex items-center space-x-1">
                           <Calendar className="w-3 h-3 text-slate-400" />
                           <span>{task.dueDate}</span>
@@ -180,8 +180,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       </div>
 
                       {/* Quick Status Shift Controls */}
-                      <div className="mt-2 pt-1 flex items-center justify-between text-[10px] border-t border-slate-100 dark:border-slate-800/50 opacity-90 group-hover:opacity-100">
-                        <span className="text-slate-400">Move:</span>
+                      <div className="mt-2 pt-1 flex items-center justify-between text-[10px] border-t border-slate-100 opacity-90 group-hover:opacity-100">
+                        <span className="text-slate-400 font-medium">Move:</span>
                         <div className="flex space-x-1">
                           {task.status !== 'Completed' && (
                             <button
@@ -194,7 +194,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                   task.status === 'Waiting For Review' ? 'Completed' : 'Completed';
                                 onStatusChange(task.id, nextStatus);
                               }}
-                              className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-colors"
+                              className="px-2 py-0.5 rounded bg-blue-50 text-[#0062E0] hover:bg-[#0062E0] hover:text-white font-medium transition-colors border border-blue-200"
                               title="Advance status"
                             >
                               Next →

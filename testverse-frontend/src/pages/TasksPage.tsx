@@ -3,9 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import {
     Plus, Search, Filter, X, Edit2,
     GripVertical, Calendar, User, Clock,
-    AlertCircle, Eye, ClipboardList, Trash2, Save
+    AlertCircle, Eye, ClipboardList, Trash2, Save, Lock
 } from 'lucide-react';
 import { fetchTasks, createTask, deleteTask, updateTask } from '../services/api';
+import { useAttention } from '../context/AttentionContext';
 
 interface Task {
     id: string;
@@ -18,6 +19,8 @@ interface Task {
     assignedStudentName?: string;
     mentorId?: string;
     mentorName?: string;
+    createdById?: string | number;
+    createdByName?: string;
     projectId?: string;
     projectName?: string;
     moduleName?: string;
@@ -25,6 +28,7 @@ interface Task {
     submissionNotes?: string;
     createdAt: string;
     updatedAt?: string;
+    isNewAssignment?: boolean;
 }
 
 interface AssignableUser {
@@ -41,11 +45,13 @@ interface DragState {
 }
 
 const TasksPage: React.FC = () => {
-    const { isAdmin, isMentor, isDeveloper } = useAuth();
+    const { user, isAdmin, isMentor, isDeveloper } = useAuth();
+    const { markTaskAttentionAsRead, refreshAttention } = useAttention();
 
     const [tasks, setTasks] = useState<Task[]>([]);
     const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
     const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
+    const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
 
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -88,6 +94,21 @@ const TasksPage: React.FC = () => {
     // LOAD TASKS
     // =========================================================
 
+    const normalizeTaskStatus = (rawStatus?: string): Task['status'] => {
+        if (!rawStatus) return 'To Do';
+        const s = rawStatus.trim();
+        if (s === 'To Do' || s === 'Planning' || s === 'In Progress' || s === 'Review' || s === 'Done') {
+            return s as Task['status'];
+        }
+        const upper = s.toUpperCase().replace(/[\s-]+/g, '_');
+        if (upper === 'TODO' || upper === 'TO_DO' || upper === 'NOT_STARTED') return 'To Do';
+        if (upper === 'PLANNING') return 'Planning';
+        if (upper === 'IN_PROGRESS' || upper === 'PROGRESS') return 'In Progress';
+        if (upper === 'REVIEW' || upper === 'IN_REVIEW' || upper === 'WAITING_FOR_REVIEW') return 'Review';
+        if (upper === 'DONE' || upper === 'COMPLETED') return 'Done';
+        return 'To Do';
+    };
+
     const loadTasks = async (): Promise<void> => {
         try {
             setLoading(true);
@@ -119,10 +140,13 @@ const TasksPage: React.FC = () => {
                     task.createdAt || new Date().toISOString(),
 
                 status:
-                    task.status || 'To Do',
+                    normalizeTaskStatus(task.status),
 
                 priority:
                     task.priority || 'Medium',
+
+                isNewAssignment:
+                    task.isNewAssignment ?? (task as any).newAssignment ?? (task.assignedStudentId ? true : false),
             }));
 
             setTasks(validTasks);
@@ -187,11 +211,35 @@ const TasksPage: React.FC = () => {
 
             setAssignableUsers(users);
 
+            // Auto-resolve current logged-in user ID if not yet present in AuthContext
+            if (user) {
+                const me = users.find(u =>
+                    (user.email && u.email?.toLowerCase() === user.email.toLowerCase()) ||
+                    (user.username && u.username?.toLowerCase() === user.username.toLowerCase()) ||
+                    (user.name && u.name?.toLowerCase() === user.name.toLowerCase())
+                );
+                if (me) {
+                    setResolvedUserId(String(me.id));
+                    if (!user.userId && !user.id) {
+                        user.userId = me.id;
+                        user.id = me.id;
+                    }
+                    try {
+                        const stored = JSON.parse(localStorage.getItem('user') || '{}');
+                        if (!stored.userId && !stored.id) {
+                            localStorage.setItem('user', JSON.stringify({ ...stored, userId: me.id, id: me.id }));
+                        }
+                    } catch (_) {}
+                }
+            }
+
             console.log('✅ Assignable users loaded:', users);
+            return users;
 
         } catch (error) {
             console.error('❌ Error loading assignable users:', error);
             setAssignableUsers([]);
+            return [];
         }
     };
 
@@ -200,14 +248,25 @@ const TasksPage: React.FC = () => {
     // =========================================================
 
     useEffect(() => {
-        loadTasks().catch((error) => {
-            console.error('Error loading tasks:', error);
-            setTasks([]);
-        });
+        // Hydrate current user ID from localStorage if available
+        try {
+            const stored = JSON.parse(localStorage.getItem('user') || '{}');
+            const storedId = stored.userId || stored.id || user?.userId || user?.id;
+            if (storedId) {
+                setResolvedUserId(String(storedId));
+            }
+        } catch (_) {}
 
-        loadAssignableUsers().catch((error) => {
-            console.error('Error loading assignable users:', error);
-            setAssignableUsers([]);
+        void markTaskAttentionAsRead();
+
+        const init = async () => {
+            await loadAssignableUsers();
+            await loadTasks();
+        };
+
+        init().catch((error) => {
+            console.error('Error initializing tasks page:', error);
+            loadTasks().catch(() => setTasks([]));
         });
     }, []);
 
@@ -257,14 +316,77 @@ const TasksPage: React.FC = () => {
     };
 
     // =========================================================
-    // DRAG & DROP
+    // ASSIGNED USER & STATUS PERMISSIONS
     // =========================================================
+
+    const isCurrentUserAssigned = (task: Task | null | undefined): boolean => {
+        if (!task || !user) return false;
+        const currentUserId = user.userId || user.id || resolvedUserId;
+        if (currentUserId && task.assignedStudentId && String(currentUserId) === String(task.assignedStudentId)) {
+            return true;
+        }
+        if (user.name && task.assignedStudentName && user.name.trim().toLowerCase() === task.assignedStudentName.trim().toLowerCase()) {
+            return true;
+        }
+        return false;
+    };
+
+    const isNewAssignmentForCurrentUser = (task: Task | null | undefined): boolean => {
+        if (!task || !user) return false;
+        // 1. Highlight is ONLY for the assigned user
+        if (!isCurrentUserAssigned(task)) {
+            return false;
+        }
+        // 2. Must still be a new assignment (not yet transitioned status)
+        const isNew = task.isNewAssignment ?? (task as any).newAssignment;
+        return isNew === true || isNew === 'true';
+    };
+
+    const canChangeTaskStatus = (task: Task | null | undefined): boolean => {
+        if (!task || !user) return false;
+        const currentUserId = user.userId || user.id || resolvedUserId;
+
+        // 1. Task creator
+        if (currentUserId && task.createdById && String(currentUserId) === String(task.createdById)) {
+            return true;
+        }
+        if (user.name && task.createdByName && user.name.trim().toLowerCase() === task.createdByName.trim().toLowerCase()) {
+            return true;
+        }
+
+        // 2. Assigned student / user (authorized worker)
+        if (isCurrentUserAssigned(task)) {
+            return true;
+        }
+
+        // 3. Appropriate mentor
+        if (currentUserId && task.mentorId && String(currentUserId) === String(task.mentorId)) {
+            return true;
+        }
+        if (user.name && task.mentorName && user.name.trim().toLowerCase() === task.mentorName.trim().toLowerCase()) {
+            return true;
+        }
+
+        // If user is a mentor, allow attempt and let backend enforce against mentees
+        if (user.role === 'MENTOR') {
+            return true;
+        }
+
+        return false;
+    };
 
     const handleDragStart = (
         event: React.DragEvent,
         taskId: string,
         status: string
     ): void => {
+
+        const task = tasks.find(t => String(t.id) === String(taskId));
+        if (task && !canChangeTaskStatus(task)) {
+            event.preventDefault();
+            alert('🔒 You do not have permission to change the status of this task. Only the task creator, assigned user, or their mentor can change task status.');
+            return;
+        }
 
         setDragState({
             taskId,
@@ -332,7 +454,7 @@ const TasksPage: React.FC = () => {
         }
 
         const draggedTask =
-            tasks.find(t => t.id === taskId);
+            tasks.find(t => String(t.id) === String(taskId));
 
         if (!draggedTask) {
 
@@ -344,11 +466,23 @@ const TasksPage: React.FC = () => {
             return;
         }
 
+        if (!canChangeTaskStatus(draggedTask)) {
+            setDragState({
+                taskId: null,
+                sourceStatus: null,
+            });
+            alert('🔒 You do not have permission to change the status of this task. Only the task creator, assigned user, or their mentor can change task status.');
+            return;
+        }
+
+        const isStatusChange = targetStatus !== draggedTask.status;
+
         const updatedTasks = tasks.map(t =>
-            t.id === taskId
+            String(t.id) === String(taskId)
                 ? {
                     ...t,
-                    status: targetStatus as Task['status']
+                    status: targetStatus as Task['status'],
+                    isNewAssignment: isStatusChange ? false : t.isNewAssignment
                 }
                 : t
         );
@@ -366,7 +500,8 @@ const TasksPage: React.FC = () => {
                 taskId,
                 {
                     ...draggedTask,
-                    status: targetStatus
+                    status: targetStatus,
+                    isNewAssignment: isStatusChange ? false : draggedTask.isNewAssignment
                 }
             );
 
@@ -376,7 +511,7 @@ const TasksPage: React.FC = () => {
                 '✅ Task status updated successfully'
             );
 
-        } catch (error) {
+        } catch (error: any) {
 
             console.error(
                 'Error updating task status:',
@@ -386,7 +521,7 @@ const TasksPage: React.FC = () => {
             setTasks(tasks);
 
             alert(
-                'Network error. Please try again.'
+                `❌ ${error.message || 'Failed to update task status'}`
             );
         }
     };
@@ -492,6 +627,12 @@ const TasksPage: React.FC = () => {
                     newTask.projectId != null
                         ? String(newTask.projectId)
                         : undefined,
+
+                status:
+                    normalizeTaskStatus(newTask.status),
+
+                isNewAssignment:
+                    newTask.isNewAssignment ?? (newTask as any).newAssignment ?? (newTask.assignedStudentId ? true : false),
             };
 
             setTasks([
@@ -746,10 +887,13 @@ const TasksPage: React.FC = () => {
                     new Date().toISOString(),
 
                 status:
-                    fullTask.status || 'To Do',
+                    normalizeTaskStatus(fullTask.status),
 
                 priority:
                     fullTask.priority || 'Medium',
+
+                isNewAssignment:
+                    fullTask.isNewAssignment ?? (fullTask as any).newAssignment ?? false,
             };
 
             // =====================================================
@@ -861,24 +1005,24 @@ const TasksPage: React.FC = () => {
         const colors: Record<string, string> = {
 
             'To Do':
-                'bg-[#ff6b00]/20 text-[#ff6b00] border-[#ff6b00]/30',
+                'bg-[#EFF6FF] text-[#0062E0] border-[#BFDBFE]',
 
             'Planning':
-                'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                'bg-slate-100 text-slate-700 border-slate-200',
 
             'In Progress':
-                'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+                'bg-amber-50 text-amber-700 border-amber-200',
 
             'Review':
-                'bg-purple-500/20 text-purple-400 border-purple-500/30',
+                'bg-purple-50 text-purple-700 border-purple-200',
 
             'Done':
-                'bg-green-500/20 text-green-400 border-green-500/30',
+                'bg-[#E6F9F4] text-[#008766] border-[#A7F3D0]',
         };
 
         return (
             colors[status] ||
-            'bg-gray-500/20 text-gray-400'
+            'bg-slate-100 text-slate-600 border-slate-200'
         );
     };
 
@@ -889,21 +1033,21 @@ const TasksPage: React.FC = () => {
         const colors: Record<string, string> = {
 
             'Critical':
-                'text-red-500 bg-red-500/10',
+                'text-red-700 bg-red-50 border border-red-200',
 
             'High':
-                'text-orange-500 bg-orange-500/10',
+                'text-orange-700 bg-orange-50 border border-orange-200',
 
             'Medium':
-                'text-yellow-500 bg-yellow-500/10',
+                'text-amber-700 bg-amber-50 border border-amber-200',
 
             'Low':
-                'text-blue-500 bg-blue-500/10',
+                'text-[#0062E0] bg-[#EFF6FF] border border-[#BFDBFE]',
         };
 
         return (
             colors[priority] ||
-            'text-gray-500 bg-gray-500/10'
+            'text-slate-600 bg-slate-50 border border-slate-200'
         );
     };
 
@@ -969,7 +1113,7 @@ const TasksPage: React.FC = () => {
     ];
 
     const canCreateTask =
-        isAdmin || isMentor;
+        isAdmin || isMentor || user?.role === 'ADMIN' || user?.role === 'MENTOR';
 
     // =========================================================
     // LOADING
@@ -979,7 +1123,7 @@ const TasksPage: React.FC = () => {
 
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-[#666666]">
+                <div className="text-slate-500 font-medium">
                     Loading tasks...
                 </div>
             </div>
@@ -1002,12 +1146,12 @@ const TasksPage: React.FC = () => {
 
                 <div>
 
-                    <h1 className="text-2xl font-bold text-white">
+                    <h1 className="text-2xl font-bold text-[#0F172A]">
                         Tasks
                     </h1>
 
-                    <p className="text-[#666666] text-sm">
-                        Drag and drop tasks to change status • {tasks.length} total tasks
+                    <p className="text-slate-500 text-sm mt-0.5">
+                        Drag and drop tasks to change status • {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}{filteredTasks.length !== tasks.length ? ` (filtered from ${tasks.length} total)` : ' total'}
                     </p>
 
                 </div>
@@ -1019,12 +1163,12 @@ const TasksPage: React.FC = () => {
                             loadAssignableUsers();
                             setShowModal(true);
                         }}
-                        className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                        className="bg-[#0062E0] hover:bg-[#0050B8] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm shadow-sm"
                     >
 
                         <Plus size={18} />
 
-                        New Task
+                        Create Task
 
                     </button>
 
@@ -1042,7 +1186,7 @@ const TasksPage: React.FC = () => {
 
                     <Search
                         size={18}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666666]"
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
 
                     <input
@@ -1052,7 +1196,7 @@ const TasksPage: React.FC = () => {
                         onChange={(e) =>
                             setSearchTerm(e.target.value)
                         }
-                        className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg pl-10 pr-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                        className="w-full bg-white border border-[#CBD5E1] rounded-lg pl-10 pr-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                     />
 
                 </div>
@@ -1061,7 +1205,7 @@ const TasksPage: React.FC = () => {
 
                     <Filter
                         size={18}
-                        className="text-[#666666]"
+                        className="text-slate-500"
                     />
 
                     <select
@@ -1069,7 +1213,7 @@ const TasksPage: React.FC = () => {
                         onChange={(e) =>
                             setFilterStatus(e.target.value)
                         }
-                        className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#ff6b00]"
+                        className="bg-white border border-[#CBD5E1] rounded-lg px-3 py-2 text-[#0F172A] text-sm focus:outline-none focus:border-[#0062E0]"
                     >
 
                         <option value="All">
@@ -1103,7 +1247,7 @@ const TasksPage: React.FC = () => {
                         onChange={(e) =>
                             setFilterPriority(e.target.value)
                         }
-                        className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#ff6b00]"
+                        className="bg-white border border-[#CBD5E1] rounded-lg px-3 py-2 text-[#0F172A] text-sm focus:outline-none focus:border-[#0062E0]"
                     >
 
                         <option value="All">
@@ -1138,13 +1282,13 @@ const TasksPage: React.FC = () => {
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
 
-                <div className="bg-[#111111] border border-[#1a1a1a] rounded-lg p-3 text-center">
+                <div className="bg-white border border-[#E2E8F0] rounded-xl p-3 text-center shadow-sm">
 
-                    <p className="text-2xl font-bold text-white">
-                        {tasks.length}
+                    <p className="text-2xl font-bold text-[#0F172A]">
+                        {filteredTasks.length}
                     </p>
 
-                    <p className="text-xs text-[#666666]">
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">
                         Total
                     </p>
 
@@ -1154,26 +1298,28 @@ const TasksPage: React.FC = () => {
 
                     <div
                         key={status}
-                        className="bg-[#111111] border border-[#1a1a1a] rounded-lg p-3 text-center"
+                        className="bg-white border border-[#E2E8F0] rounded-xl p-3 text-center shadow-sm"
                     >
 
                         <p
                             className={`text-2xl font-bold ${
                                 status === 'Done'
-                                    ? 'text-green-400'
-                                    : 'text-white'
+                                    ? 'text-[#008766]'
+                                    : status === 'To Do'
+                                    ? 'text-[#0062E0]'
+                                    : 'text-[#0F172A]'
                             }`}
                         >
 
                             {
-                                tasks.filter(
+                                filteredTasks.filter(
                                     t => t.status === status
                                 ).length
                             }
 
                         </p>
 
-                        <p className="text-xs text-[#666666]">
+                        <p className="text-xs font-medium text-slate-500 mt-0.5">
                             {status}
                         </p>
 
@@ -1189,18 +1335,18 @@ const TasksPage: React.FC = () => {
 
             {tasks.length === 0 ? (
 
-                <div className="text-center py-16 bg-[#111111] border border-[#1a1a1a] rounded-xl">
+                <div className="text-center py-16 bg-white border border-[#E2E8F0] rounded-xl shadow-sm">
 
                     <ClipboardList
                         size={48}
-                        className="mx-auto mb-3 text-[#444444]"
+                        className="mx-auto mb-3 text-slate-300"
                     />
 
-                    <p className="text-lg text-white">
+                    <p className="text-lg font-semibold text-[#0F172A]">
                         No tasks yet
                     </p>
 
-                    <p className="text-sm text-[#666666]">
+                    <p className="text-sm text-slate-500 mt-0.5">
                         Create your first task to get started!
                     </p>
 
@@ -1211,7 +1357,7 @@ const TasksPage: React.FC = () => {
                                 loadAssignableUsers();
                                 setShowModal(true);
                             }}
-                            className="mt-4 bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2"
+                            className="mt-4 bg-[#0062E0] hover:bg-[#0050B8] text-white px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2 font-medium text-sm shadow-sm"
                         >
 
                             <Plus size={18} />
@@ -1239,7 +1385,7 @@ const TasksPage: React.FC = () => {
 
                             <div
                                 key={status}
-                                className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-3 min-h-[250px] transition-all"
+                                className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3 min-h-[250px] transition-all"
                                 onDragOver={handleDragOver}
                                 onDrop={(e) =>
                                     handleDrop(e, status)
@@ -1249,12 +1395,12 @@ const TasksPage: React.FC = () => {
                                 <div className="flex items-center justify-between mb-3">
 
                                     <span
-                                        className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getStatusColor(status)}`}
+                                        className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${getStatusColor(status)}`}
                                     >
                                         {status} ({statusTasks.length})
                                     </span>
 
-                                    <span className="text-[10px] text-[#444444]">
+                                    <span className="text-[10px] text-slate-400 font-medium">
                                         Drop here
                                     </span>
 
@@ -1262,44 +1408,72 @@ const TasksPage: React.FC = () => {
 
                                 <div className="space-y-2">
 
-                                    {statusTasks.map((task) => (
-
+                                    {statusTasks.map((task) => {
+                                        const canChangeStatus = canChangeTaskStatus(task);
+                                        const isNew = isNewAssignmentForCurrentUser(task);
+                                        return (
                                         <div
                                             key={task.id}
-                                            draggable
-                                            onDragStart={(e) =>
-                                                handleDragStart(
-                                                    e,
-                                                    task.id,
-                                                    task.status
-                                                )
-                                            }
+                                            draggable={canChangeStatus}
+                                            onDragStart={(e) => {
+                                                if (canChangeStatus) {
+                                                    handleDragStart(
+                                                        e,
+                                                        task.id,
+                                                        task.status
+                                                    );
+                                                } else {
+                                                    e.preventDefault();
+                                                }
+                                            }}
                                             onDragEnd={handleDragEnd}
                                             onClick={() =>
                                                 openViewModal(task)
                                             }
-                                            className="bg-[#111111] border border-[#1a1a1a] rounded-lg p-3 hover:border-[#ff6b00] transition-all group cursor-pointer active:cursor-grabbing relative"
+                                            className={`rounded-lg p-3 transition-all group cursor-pointer relative ${
+                                                isNew
+                                                    ? 'bg-gradient-to-b from-amber-50/50 to-white border-2 border-amber-400 shadow-[0_2px_14px_rgba(245,158,11,0.22)] ring-1 ring-amber-300 hover:border-amber-500'
+                                                    : 'bg-white border border-[#E2E8F0] hover:border-[#0062E0] hover:shadow-md shadow-sm'
+                                            } ${canChangeStatus ? 'active:cursor-grabbing' : 'cursor-default'}`}
                                         >
+
+                                            {isNew && (
+                                                <div className="mb-2.5 flex items-center justify-between gap-1.5 pb-2 border-b border-amber-200/80">
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-sm animate-pulse">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                                        NEW ASSIGNMENT
+                                                    </span>
+                                                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200">
+                                                        Assigned to you
+                                                    </span>
+                                                </div>
+                                            )}
 
                                             <div className="flex items-start gap-2">
 
-                                                <div className="mt-0.5 text-[#444444] cursor-grab">
+                                                <div className="mt-0.5" title={canChangeStatus ? 'Drag to change status' : 'Status change restricted to creator, assigned user, or mentor'}>
 
-                                                    <GripVertical
-                                                        size={14}
-                                                    />
+                                                    {canChangeStatus ? (
+                                                        <span className="text-slate-400 hover:text-slate-600 cursor-grab block">
+                                                            <GripVertical size={14} />
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 block">
+                                                            <Lock size={13} />
+                                                        </span>
+                                                    )}
 
                                                 </div>
 
                                                 <div className="flex-1 min-w-0">
 
-                                                    <h4 className="text-sm text-white font-medium truncate">
+                                                    <h4 className="text-sm text-[#0F172A] font-semibold truncate group-hover:text-[#0062E0] transition-colors">
                                                         {task.title}
                                                     </h4>
 
                                                     {task.description && (
 
-                                                        <p className="text-xs text-[#666666] mt-1 line-clamp-2">
+                                                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">
                                                             {task.description}
                                                         </p>
 
@@ -1308,7 +1482,7 @@ const TasksPage: React.FC = () => {
                                                     <div className="flex items-center gap-2 mt-2 flex-wrap">
 
                                                         <span
-                                                            className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${getPriorityColor(task.priority)}`}
+                                                            className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium ${getPriorityColor(task.priority)}`}
                                                         >
 
                                                             {getPriorityIcon(
@@ -1321,7 +1495,7 @@ const TasksPage: React.FC = () => {
 
                                                         {task.moduleName && (
 
-                                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1a1a1a] text-[#666666]">
+                                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F1F5F9] text-slate-600 font-medium">
                                                                 {task.moduleName}
                                                             </span>
 
@@ -1329,7 +1503,7 @@ const TasksPage: React.FC = () => {
 
                                                         {task.dueDate && (
 
-                                                            <span className="text-[10px] text-[#666666] flex items-center gap-1">
+                                                            <span className="text-[10px] text-slate-500 flex items-center gap-1">
 
                                                                 <Calendar
                                                                     size={10}
@@ -1349,10 +1523,11 @@ const TasksPage: React.FC = () => {
 
                                                     {task.assignedStudentName && (
 
-                                                        <div className="flex items-center gap-1 mt-1 text-[10px] text-[#666666]">
+                                                        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-slate-600 font-medium">
 
                                                             <User
                                                                 size={10}
+                                                                className="text-[#0062E0]"
                                                             />
 
                                                             {task.assignedStudentName}
@@ -1361,7 +1536,7 @@ const TasksPage: React.FC = () => {
 
                                                     )}
 
-                                                    <div className="mt-1 text-[8px] text-[#444444] flex items-center gap-1">
+                                                    <div className="mt-1 text-[9px] text-slate-400 flex items-center gap-1">
 
                                                         <Eye size={10} />
 
@@ -1373,7 +1548,7 @@ const TasksPage: React.FC = () => {
 
                                             </div>
 
-                                            <div className="flex items-center gap-1 mt-2 pt-2 border-t border-[#1a1a1a]">
+                                            <div className="flex items-center gap-1 mt-2 pt-2 border-t border-[#F1F5F9]">
 
                                                 {canCreateTask && (
 
@@ -1384,7 +1559,7 @@ const TasksPage: React.FC = () => {
                                                                 e.stopPropagation();
                                                                 openEditModal(task);
                                                             }}
-                                                            className="text-[10px] px-2 py-0.5 rounded text-[#666666] hover:text-[#ff6b00] hover:bg-[#1a1a1a] transition-colors flex items-center gap-1"
+                                                            className="text-[10px] px-2 py-0.5 rounded text-slate-500 hover:text-[#0062E0] hover:bg-[#EFF6FF] transition-colors flex items-center gap-1 font-medium"
                                                         >
 
                                                             <Edit2
@@ -1404,7 +1579,7 @@ const TasksPage: React.FC = () => {
                                                                     console.error
                                                                 );
                                                             }}
-                                                            className="text-[10px] px-2 py-0.5 rounded text-[#666666] hover:text-red-500 hover:bg-[#1a1a1a] transition-colors flex items-center gap-1"
+                                                            className="text-[10px] px-2 py-0.5 rounded text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1 font-medium"
                                                         >
 
                                                             <Trash2
@@ -1422,12 +1597,12 @@ const TasksPage: React.FC = () => {
                                             </div>
 
                                         </div>
-
-                                    ))}
+                                    );
+                                    })}
 
                                     {statusTasks.length === 0 && (
 
-                                        <div className="text-center py-6 text-[#444444] text-sm">
+                                        <div className="text-center py-6 text-slate-400 text-sm">
 
                                             No tasks
 
@@ -1459,17 +1634,17 @@ const TasksPage: React.FC = () => {
 
             {showModal && (
 
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 overflow-y-auto py-8">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto py-8">
 
-                    <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                    <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
 
-                        <div className="flex items-center justify-between mb-4 sticky top-0 bg-[#111111] pb-2">
+                        <div className="flex items-center justify-between mb-4 sticky top-0 bg-white pb-3 border-b border-[#F1F5F9]">
 
-                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-[#0F172A] flex items-center gap-2">
 
                                 <ClipboardList
                                     size={20}
-                                    className="text-[#ff6b00]"
+                                    className="text-[#0062E0]"
                                 />
 
                                 Create New Task
@@ -1481,7 +1656,7 @@ const TasksPage: React.FC = () => {
                                     setShowModal(false);
                                     resetForm();
                                 }}
-                                className="text-[#666666] hover:text-white"
+                                className="text-slate-400 hover:text-slate-600"
                             >
 
                                 <X size={20} />
@@ -1492,7 +1667,7 @@ const TasksPage: React.FC = () => {
 
                         {dateError && (
 
-                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-sm">
+                            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
                                 {dateError}
                             </div>
 
@@ -1505,7 +1680,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Task Title *
                                 </label>
 
@@ -1518,7 +1693,7 @@ const TasksPage: React.FC = () => {
                                             title: e.target.value
                                         })
                                     }
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                                     placeholder="Enter task title"
                                     required
                                 />
@@ -1527,7 +1702,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Description
                                 </label>
 
@@ -1540,7 +1715,7 @@ const TasksPage: React.FC = () => {
                                         })
                                     }
                                     rows={3}
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                                     placeholder="Task description"
                                 />
 
@@ -1550,7 +1725,7 @@ const TasksPage: React.FC = () => {
 
                                 <div>
 
-                                    <label className="block text-sm text-[#666666] mb-1">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
                                         Priority
                                     </label>
 
@@ -1563,7 +1738,7 @@ const TasksPage: React.FC = () => {
                                                     e.target.value as Task['priority']
                                             })
                                         }
-                                        className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff6b00]"
+                                        className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] focus:outline-none focus:border-[#0062E0] text-sm"
                                     >
 
                                         <option value="Low">
@@ -1588,7 +1763,7 @@ const TasksPage: React.FC = () => {
 
                                 <div>
 
-                                    <label className="block text-sm text-[#666666] mb-1">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
                                         Module
                                     </label>
 
@@ -1602,7 +1777,7 @@ const TasksPage: React.FC = () => {
                                                 e.target.value
                                             })
                                         }
-                                        className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                        className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                                         placeholder="Module name"
                                     />
 
@@ -1616,7 +1791,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Assign To
                                 </label>
 
@@ -1631,7 +1806,7 @@ const TasksPage: React.FC = () => {
                                             e.target.value
                                         })
                                     }
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] focus:outline-none focus:border-[#0062E0] text-sm"
                                 >
 
                                     <option value="">
@@ -1655,13 +1830,13 @@ const TasksPage: React.FC = () => {
 
                                 </select>
 
-                                <p className="text-[10px] text-[#666666] mt-1">
+                                <p className="text-[11px] text-slate-500 mt-1">
                                     Only active Testers and Developers can be assigned.
                                 </p>
 
                                 {assignableUsers.length === 0 && (
 
-                                    <p className="text-[10px] text-yellow-500 mt-1">
+                                    <p className="text-[11px] text-amber-600 mt-1 font-medium">
                                         No active Tester or Developer users available.
                                     </p>
 
@@ -1671,7 +1846,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Due Date
                                 </label>
 
@@ -1731,10 +1906,10 @@ const TasksPage: React.FC = () => {
 
                                     }}
                                     min={getTodayDate()}
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff6b00] [color-scheme:dark]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] focus:outline-none focus:border-[#0062E0] text-sm [color-scheme:light]"
                                 />
 
-                                <p className="text-[10px] text-[#666666] mt-1">
+                                <p className="text-[11px] text-slate-500 mt-1">
                                     ⚡ Min date: {new Date().toLocaleDateString()}
                                 </p>
 
@@ -1742,7 +1917,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Instructions
                                 </label>
 
@@ -1756,7 +1931,7 @@ const TasksPage: React.FC = () => {
                                         })
                                     }
                                     rows={2}
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                                     placeholder="Additional instructions"
                                 />
 
@@ -1764,7 +1939,7 @@ const TasksPage: React.FC = () => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors"
+                                className="w-full bg-[#0062E0] hover:bg-[#0050B8] text-white px-4 py-2.5 rounded-lg transition-colors font-medium text-sm shadow-sm"
                             >
                                 Create Task
                             </button>
@@ -1783,17 +1958,17 @@ const TasksPage: React.FC = () => {
 
             {showEditModal && editingTask && (
 
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 overflow-y-auto py-8">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto py-8">
 
-                    <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                    <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
 
-                        <div className="flex items-center justify-between mb-4 sticky top-0 bg-[#111111] pb-2">
+                        <div className="flex items-center justify-between mb-4 sticky top-0 bg-white pb-3 border-b border-[#F1F5F9]">
 
-                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-[#0F172A] flex items-center gap-2">
 
                                 <Edit2
                                     size={20}
-                                    className="text-[#ff6b00]"
+                                    className="text-[#0062E0]"
                                 />
 
                                 Edit Task
@@ -1806,7 +1981,7 @@ const TasksPage: React.FC = () => {
                                     setEditingTask(null);
                                     resetForm();
                                 }}
-                                className="text-[#666666] hover:text-white"
+                                className="text-slate-400 hover:text-slate-600"
                             >
 
                                 <X size={20} />
@@ -1817,7 +1992,7 @@ const TasksPage: React.FC = () => {
 
                         {editDateError && (
 
-                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-sm">
+                            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
                                 {editDateError}
                             </div>
 
@@ -1830,7 +2005,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Task Title *
                                 </label>
 
@@ -1843,7 +2018,7 @@ const TasksPage: React.FC = () => {
                                             title: e.target.value
                                         })
                                     }
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                                     placeholder="Enter task title"
                                     required
                                 />
@@ -1852,7 +2027,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Description
                                 </label>
 
@@ -1866,7 +2041,7 @@ const TasksPage: React.FC = () => {
                                         })
                                     }
                                     rows={3}
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                                     placeholder="Task description"
                                 />
 
@@ -1876,7 +2051,7 @@ const TasksPage: React.FC = () => {
 
                                 <div>
 
-                                    <label className="block text-sm text-[#666666] mb-1">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
                                         Priority
                                     </label>
 
@@ -1889,7 +2064,7 @@ const TasksPage: React.FC = () => {
                                                     e.target.value as Task['priority']
                                             })
                                         }
-                                        className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff6b00]"
+                                        className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] focus:outline-none focus:border-[#0062E0] text-sm"
                                     >
 
                                         <option value="Low">
@@ -1914,7 +2089,7 @@ const TasksPage: React.FC = () => {
 
                                 <div>
 
-                                    <label className="block text-sm text-[#666666] mb-1">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
                                         Module
                                     </label>
 
@@ -1928,7 +2103,7 @@ const TasksPage: React.FC = () => {
                                                 e.target.value
                                             })
                                         }
-                                        className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                        className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                                         placeholder="Module name"
                                     />
 
@@ -1942,7 +2117,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Assign To
                                 </label>
 
@@ -1957,7 +2132,7 @@ const TasksPage: React.FC = () => {
                                             e.target.value
                                         })
                                     }
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] focus:outline-none focus:border-[#0062E0] text-sm"
                                 >
 
                                     <option value="">
@@ -1981,7 +2156,7 @@ const TasksPage: React.FC = () => {
 
                                 </select>
 
-                                <p className="text-[10px] text-[#666666] mt-1">
+                                <p className="text-[11px] text-slate-500 mt-1">
                                     Only active Testers and Developers can be assigned.
                                 </p>
 
@@ -1989,7 +2164,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Due Date
                                 </label>
 
@@ -2049,10 +2224,10 @@ const TasksPage: React.FC = () => {
 
                                     }}
                                     min={getTodayDate()}
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#ff6b00] [color-scheme:dark]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] focus:outline-none focus:border-[#0062E0] text-sm [color-scheme:light]"
                                 />
 
-                                <p className="text-[10px] text-[#666666] mt-1">
+                                <p className="text-[11px] text-slate-500 mt-1">
                                     ⚡ Min date: {new Date().toLocaleDateString()}
                                 </p>
 
@@ -2060,7 +2235,7 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <label className="block text-sm text-[#666666] mb-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
                                     Instructions
                                 </label>
 
@@ -2074,7 +2249,7 @@ const TasksPage: React.FC = () => {
                                         })
                                     }
                                     rows={2}
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2 text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] text-sm"
                                     placeholder="Additional instructions"
                                 />
 
@@ -2084,7 +2259,7 @@ const TasksPage: React.FC = () => {
 
                                 <button
                                     type="submit"
-                                    className="flex-1 bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                    className="flex-1 bg-[#0062E0] hover:bg-[#0050B8] text-white px-4 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium text-sm shadow-sm"
                                 >
 
                                     <Save size={18} />
@@ -2100,7 +2275,7 @@ const TasksPage: React.FC = () => {
                                         setEditingTask(null);
                                         resetForm();
                                     }}
-                                    className="bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white px-4 py-2 rounded-lg transition-colors border border-[#2a2a2a]"
+                                    className="bg-[#F1F5F9] hover:bg-[#E2E8F0] text-slate-700 px-4 py-2 rounded-lg transition-colors border border-[#E2E8F0] font-medium text-sm"
                                 >
                                     Cancel
                                 </button>
@@ -2121,20 +2296,20 @@ const TasksPage: React.FC = () => {
 
             {showViewModal && viewingTask && (
 
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 overflow-y-auto py-8">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto py-8">
 
-                    <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                    <div className="bg-white border border-[#E2E8F0] rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
 
-                        <div className="sticky top-0 bg-[#111111] border-b border-[#1a1a1a] px-6 py-4 flex items-center justify-between">
+                        <div className="sticky top-0 bg-white border-b border-[#E2E8F0] px-6 py-4 flex items-center justify-between">
 
                             <div className="flex items-center gap-3">
 
                                 <ClipboardList
                                     size={24}
-                                    className="text-[#ff6b00]"
+                                    className="text-[#0062E0]"
                                 />
 
-                                <h2 className="text-xl font-bold text-white">
+                                <h2 className="text-xl font-bold text-[#0F172A]">
                                     Task Details
                                 </h2>
 
@@ -2151,7 +2326,7 @@ const TasksPage: React.FC = () => {
                                                 viewingTask
                                             );
                                         }}
-                                        className="text-[#ff6b00] hover:text-[#ff8c38] p-2 rounded-lg transition-colors flex items-center gap-1"
+                                        className="text-[#0062E0] hover:text-[#0050B8] hover:bg-[#EFF6FF] p-2 rounded-lg transition-colors flex items-center gap-1"
                                     >
 
                                         <Edit2 size={18} />
@@ -2165,7 +2340,7 @@ const TasksPage: React.FC = () => {
                                         setShowViewModal(false);
                                         setViewingTask(null);
                                     }}
-                                    className="text-[#666666] hover:text-white"
+                                    className="text-slate-400 hover:text-slate-600"
                                 >
 
                                     <X size={24} />
@@ -2180,35 +2355,42 @@ const TasksPage: React.FC = () => {
 
                             <div>
 
-                                <h3 className="text-2xl font-bold text-white">
+                                <h3 className="text-2xl font-bold text-[#0F172A]">
                                     {viewingTask.title}
                                 </h3>
 
                                 <div className="flex items-center gap-3 mt-2 flex-wrap">
 
                                     <span
-                                        className={`text-xs px-3 py-1 rounded-full border ${getStatusColor(viewingTask.status)}`}
+                                        className={`text-xs px-3 py-1 rounded-full border font-semibold ${getStatusColor(viewingTask.status)}`}
                                     >
                                         {viewingTask.status}
                                     </span>
 
                                     <span
-                                        className={`text-xs px-3 py-1 rounded-full ${getPriorityColor(viewingTask.priority)}`}
+                                        className={`text-xs px-3 py-1 rounded-full font-semibold ${getPriorityColor(viewingTask.priority)}`}
                                     >
                                         {viewingTask.priority}
                                     </span>
+
+                                    {isNewAssignmentForCurrentUser(viewingTask) && (
+                                        <span className="text-xs px-3 py-1 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5 shadow-sm">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                            NEW ASSIGNMENT • Assigned to you
+                                        </span>
+                                    )}
 
                                 </div>
 
                             </div>
 
-                            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                            <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4">
 
-                                <label className="text-xs text-[#666666] uppercase tracking-wider">
+                                <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
                                     Description
                                 </label>
 
-                                <p className="text-white text-sm mt-1">
+                                <p className="text-[#0F172A] text-sm mt-1">
                                     {viewingTask.description ||
                                         'No description'}
                                 </p>
@@ -2217,26 +2399,26 @@ const TasksPage: React.FC = () => {
 
                             <div className="grid grid-cols-2 gap-4">
 
-                                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4">
 
-                                    <label className="text-xs text-[#666666] uppercase tracking-wider">
+                                    <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
                                         Module
                                     </label>
 
-                                    <p className="text-white text-sm mt-1">
+                                    <p className="text-[#0F172A] text-sm mt-1">
                                         {viewingTask.moduleName ||
                                             'Unassigned'}
                                     </p>
 
                                 </div>
 
-                                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4">
 
-                                    <label className="text-xs text-[#666666] uppercase tracking-wider">
+                                    <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
                                         Due Date
                                     </label>
 
-                                    <p className="text-white text-sm mt-1">
+                                    <p className="text-[#0F172A] text-sm mt-1">
 
                                         {viewingTask.dueDate
                                             ? new Date(
@@ -2249,7 +2431,7 @@ const TasksPage: React.FC = () => {
                                                 viewingTask.dueDate
                                             ) < new Date() && (
 
-                                                <span className="ml-2 text-xs text-red-400">
+                                                <span className="ml-2 text-xs text-red-600 font-medium">
                                                     ⚠️ Past due
                                                 </span>
 
@@ -2263,13 +2445,13 @@ const TasksPage: React.FC = () => {
 
                             {viewingTask.instructions && (
 
-                                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4">
 
-                                    <label className="text-xs text-[#666666] uppercase tracking-wider">
+                                    <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
                                         Instructions
                                     </label>
 
-                                    <p className="text-white text-sm mt-1 whitespace-pre-wrap">
+                                    <p className="text-[#0F172A] text-sm mt-1 whitespace-pre-wrap">
                                         {viewingTask.instructions}
                                     </p>
 
@@ -2277,15 +2459,15 @@ const TasksPage: React.FC = () => {
 
                             )}
 
-                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#1a1a1a]">
+                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#F1F5F9]">
 
                                 <div>
 
-                                    <label className="text-[10px] text-[#666666] uppercase tracking-wider">
+                                    <label className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
                                         Created
                                     </label>
 
-                                    <p className="text-white text-sm">
+                                    <p className="text-[#0F172A] text-sm">
                                         {
                                             new Date(
                                                 viewingTask.createdAt
@@ -2299,11 +2481,11 @@ const TasksPage: React.FC = () => {
 
                                     <div>
 
-                                        <label className="text-[10px] text-[#666666] uppercase tracking-wider">
+                                        <label className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
                                             Mentor
                                         </label>
 
-                                        <p className="text-white text-sm">
+                                        <p className="text-[#0F172A] text-sm">
                                             {viewingTask.mentorName}
                                         </p>
 
@@ -2315,11 +2497,11 @@ const TasksPage: React.FC = () => {
 
                                     <div>
 
-                                        <label className="text-[10px] text-[#666666] uppercase tracking-wider">
+                                        <label className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
                                             Assigned To
                                         </label>
 
-                                        <p className="text-white text-sm">
+                                        <p className="text-[#0F172A] text-sm">
                                             {viewingTask.assignedStudentName}
                                         </p>
 
@@ -2329,7 +2511,7 @@ const TasksPage: React.FC = () => {
 
                             </div>
 
-                            <div className="flex gap-3 pt-4 border-t border-[#1a1a1a]">
+                            <div className="flex gap-3 pt-4 border-t border-[#F1F5F9]">
 
                                 {canCreateTask && (
 
@@ -2340,7 +2522,7 @@ const TasksPage: React.FC = () => {
                                                 viewingTask
                                             );
                                         }}
-                                        className="flex-1 bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                        className="flex-1 bg-[#0062E0] hover:bg-[#0050B8] text-white px-4 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium text-sm shadow-sm"
                                     >
 
                                         <Edit2 size={18} />
@@ -2355,7 +2537,7 @@ const TasksPage: React.FC = () => {
                                     onClick={() => {
                                         setShowViewModal(false);
                                     }}
-                                    className="flex-1 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white px-4 py-2 rounded-lg transition-colors"
+                                    className="flex-1 bg-[#F1F5F9] hover:bg-[#E2E8F0] text-slate-700 px-4 py-2.5 rounded-lg transition-colors font-medium text-sm border border-[#E2E8F0]"
                                 >
                                     Close
                                 </button>

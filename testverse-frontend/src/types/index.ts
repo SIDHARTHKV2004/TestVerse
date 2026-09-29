@@ -75,6 +75,7 @@ export interface Task {
   mentorName?: string;
   submissionNotes?: string;
   instructions?: string;
+  isNewAssignment?: boolean;
 }
 
 // Bug Types
@@ -82,7 +83,7 @@ export type BugSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type BugStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'REJECTED' | 'VERIFIED';
 
 export interface BugReport {
-  id: number;
+  id: string | number;
   title: string;
   description: string;
   severity: BugSeverity | string;

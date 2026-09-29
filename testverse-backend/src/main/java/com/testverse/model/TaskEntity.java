@@ -35,10 +35,16 @@ public class TaskEntity {
     private LocalDate dueDate;
 
     @Column(name = "assigned_student_id")
-    private String assignedStudentId;
+    private Long assignedStudentId;
 
     @Column(name = "mentor_id")
-    private String mentorId;
+    private Long mentorId;
+
+    @Column(name = "created_by_id")
+    private Long createdById;
+
+    @Column(name = "created_by_name")
+    private String createdByName;
 
     @Column(name = "project_id")
     private String projectId;
@@ -56,6 +62,20 @@ public class TaskEntity {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "is_new_assignment")
+    private Boolean isNewAssignment;
+
+    public Boolean getIsNewAssignment() {
+        if (this.isNewAssignment == null) {
+            return assignedStudentId != null;
+        }
+        return this.isNewAssignment;
+    }
+
+    public void setIsNewAssignment(Boolean isNewAssignment) {
+        this.isNewAssignment = isNewAssignment;
+    }
 
     @PrePersist
     public void generateId() {

@@ -181,7 +181,7 @@ const DashboardPage: React.FC = () => {
   if (loading) {
     return (
         <div className="flex items-center justify-center h-64">
-          <div className="text-slate-400">Loading dashboard...</div>
+          <div className="text-slate-500 font-medium">Loading dashboard...</div>
         </div>
     );
   }
@@ -190,22 +190,22 @@ const DashboardPage: React.FC = () => {
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold text-[#0F172A]">
               Welcome back, {user?.name || 'User'}! 👋
             </h1>
-            <p className="text-slate-400 text-sm">Here's your QA platform overview</p>
+            <p className="text-slate-500 text-sm mt-0.5">Here's your QA platform overview</p>
           </div>
           <div className="flex items-center gap-3">
             {stats.streakDays > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a1a] rounded-lg">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-lg">
                   <Flame className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm text-white">{stats.streakDays} day streak</span>
+                  <span className="text-sm font-medium text-amber-800">{stats.streakDays} day streak</span>
                 </div>
             )}
             {stats.points > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a1a] rounded-lg">
-                  <Award className="w-4 h-4 text-indigo-400" />
-                  <span className="text-sm text-white">{stats.points} pts</span>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg">
+                  <Award className="w-4 h-4 text-[#0062E0]" />
+                  <span className="text-sm font-medium text-[#0062E0]">{stats.points} pts</span>
                 </div>
             )}
           </div>
@@ -213,154 +213,154 @@ const DashboardPage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 
-          {/* ✅ TOTAL TASKS - NOW FIRST (SWAPPED) */}
+          {/* ✅ TOTAL TASKS */}
           <div
               onClick={() => handleCardClick('tasks')}
-              className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 hover:border-[#ff6b00] hover:bg-[#0d0d0d] transition-all cursor-pointer group"
+              className="bg-white border border-[#E2E8F0] rounded-xl p-5 hover:border-[#0062E0] hover:shadow-md transition-all cursor-pointer group shadow-sm"
           >
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-slate-400 group-hover:text-[#ff6b00] transition-colors">Total Tasks</div>
-                <div className="text-2xl font-bold text-white">{stats.totalTasks}</div>
+                <div className="text-sm font-medium text-slate-500 group-hover:text-[#0062E0] transition-colors">Total Tasks</div>
+                <div className="text-2xl font-bold text-[#0F172A] mt-1">{stats.totalTasks}</div>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center group-hover:bg-indigo-500/30 transition-colors">
-                <ClipboardList className="w-5 h-5 text-indigo-400" />
+              <div className="w-11 h-11 rounded-xl bg-[#EFF6FF] flex items-center justify-center group-hover:bg-[#DBEAFE] transition-colors">
+                <ClipboardList className="w-5 h-5 text-[#0062E0]" />
               </div>
             </div>
-            <div className="mt-2 flex items-center gap-2 text-xs">
-              <span className="text-green-400">{stats.completedTasks} completed</span>
-              <span className="text-slate-500">•</span>
-              <span className="text-yellow-400">{stats.pendingTasks} pending</span>
+            <div className="mt-3 flex items-center gap-2 text-xs">
+              <span className="text-emerald-600 font-medium">{stats.completedTasks} completed</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-amber-600 font-medium">{stats.pendingTasks} pending</span>
             </div>
           </div>
 
-          {/* ✅ TOTAL MODULES - NOW SECOND (SWAPPED) */}
+          {/* ✅ TOTAL MODULES */}
           <div
               onClick={() => handleCardClick('projects')}
-              className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 hover:border-[#ff6b00] hover:bg-[#0d0d0d] transition-all cursor-pointer group"
+              className="bg-white border border-[#E2E8F0] rounded-xl p-5 hover:border-[#00B388] hover:shadow-md transition-all cursor-pointer group shadow-sm"
           >
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-slate-400 group-hover:text-[#ff6b00] transition-colors">Total Modules</div>
-                <div className="text-2xl font-bold text-white">{stats.totalModules}</div>
+                <div className="text-sm font-medium text-slate-500 group-hover:text-[#00B388] transition-colors">Total Modules</div>
+                <div className="text-2xl font-bold text-[#0F172A] mt-1">{stats.totalModules}</div>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-[#ff6b00]/20 flex items-center justify-center group-hover:bg-[#ff6b00]/30 transition-colors">
-                <FolderKanban className="w-5 h-5 text-[#ff6b00]" />
+              <div className="w-11 h-11 rounded-xl bg-[#E6F9F4] flex items-center justify-center group-hover:bg-[#CCF2E9] transition-colors">
+                <FolderKanban className="w-5 h-5 text-[#00B388]" />
               </div>
             </div>
-            <div className="mt-2 flex items-center gap-1 text-xs">
-              <span className="text-green-400">{stats.activeModules} active</span>
-              <span className="text-slate-500">•</span>
-              <span className="text-blue-400">{stats.completedModules} completed</span>
+            <div className="mt-3 flex items-center gap-1.5 text-xs">
+              <span className="text-emerald-600 font-medium">{stats.activeModules} active</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-[#0062E0] font-medium">{stats.completedModules} completed</span>
             </div>
           </div>
 
-          {/* ✅ Bug Tracker - THIRD (UNCHANGED) */}
+          {/* ✅ Bug Tracker */}
           <div
               onClick={() => handleCardClick('bugs')}
-              className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 hover:border-[#ff6b00] hover:bg-[#0d0d0d] transition-all cursor-pointer group"
+              className="bg-white border border-[#E2E8F0] rounded-xl p-5 hover:border-red-400 hover:shadow-md transition-all cursor-pointer group shadow-sm"
           >
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-slate-400 group-hover:text-[#ff6b00] transition-colors">Bug Tracker</div>
-                <div className="text-2xl font-bold text-white">{stats.totalBugs}</div>
+                <div className="text-sm font-medium text-slate-500 group-hover:text-red-500 transition-colors">Bug Tracker</div>
+                <div className="text-2xl font-bold text-[#0F172A] mt-1">{stats.totalBugs}</div>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center group-hover:bg-red-500/30 transition-colors">
-                <Bug className="w-5 h-5 text-red-400" />
+              <div className="w-11 h-11 rounded-xl bg-[#FEF2F2] flex items-center justify-center group-hover:bg-[#FEE2E2] transition-colors">
+                <Bug className="w-5 h-5 text-red-500" />
               </div>
             </div>
-            <div className="mt-2 flex items-center gap-2 text-xs">
-              <span className="text-red-400">{stats.openBugs} open</span>
-              <span className="text-slate-500">•</span>
-              <span className="text-green-400">{stats.resolvedBugs} resolved</span>
+            <div className="mt-3 flex items-center gap-2 text-xs">
+              <span className="text-red-500 font-medium">{stats.openBugs} open</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-emerald-600 font-medium">{stats.resolvedBugs} resolved</span>
             </div>
           </div>
 
-          {/* ✅ Team Members - FOURTH (UNCHANGED) */}
+          {/* ✅ Team Members */}
           <div
               onClick={() => handleCardClick('team')}
-              className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 hover:border-[#ff6b00] hover:bg-[#0d0d0d] transition-all cursor-pointer group"
+              className="bg-white border border-[#E2E8F0] rounded-xl p-5 hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group shadow-sm"
           >
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-slate-400 group-hover:text-[#ff6b00] transition-colors">Team Members</div>
-                <div className="text-2xl font-bold text-white">{stats.teamMembers}</div>
+                <div className="text-sm font-medium text-slate-500 group-hover:text-purple-600 transition-colors">Team Members</div>
+                <div className="text-2xl font-bold text-[#0F172A] mt-1">{stats.teamMembers}</div>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
-                <Users className="w-5 h-5 text-purple-400" />
+              <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+                <Users className="w-5 h-5 text-purple-600" />
               </div>
             </div>
-            <div className="mt-2 flex items-center gap-1 text-xs">
+            <div className="mt-3 flex items-center gap-1 text-xs">
               <span className="text-slate-500">Active team members</span>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+          <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
+              <div className="w-11 h-11 rounded-xl bg-[#E6F9F4] flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-[#00B388]" />
               </div>
               <div>
-                <div className="text-sm text-slate-400">Completion Rate</div>
-                <div className="text-xl font-bold text-white">{stats.completionRate}%</div>
+                <div className="text-sm font-medium text-slate-500">Completion Rate</div>
+                <div className="text-xl font-bold text-[#0F172A]">{stats.completionRate}%</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+          <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <MessageSquare className="w-5 h-5 text-blue-400" />
+              <div className="w-11 h-11 rounded-xl bg-[#EFF6FF] flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-[#0062E0]" />
               </div>
               <div>
-                <div className="text-sm text-slate-400">Community Posts</div>
-                <div className="text-xl font-bold text-white">{stats.totalCommunityPosts}</div>
+                <div className="text-sm font-medium text-slate-500">Community Posts</div>
+                <div className="text-xl font-bold text-[#0F172A]">{stats.totalCommunityPosts}</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+          <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                <Activity className="w-5 h-5 text-amber-400" />
+              <div className="w-11 h-11 rounded-xl bg-[#FFFBEB] flex items-center justify-center">
+                <Activity className="w-5 h-5 text-amber-500" />
               </div>
               <div>
-                <div className="text-sm text-slate-400">Active Modules</div>
-                <div className="text-xl font-bold text-white">{stats.activeModules}</div>
+                <div className="text-sm font-medium text-slate-500">Active Modules</div>
+                <div className="text-xl font-bold text-[#0F172A]">{stats.activeModules}</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-medium">Recent Activity</h3>
+            <h3 className="text-[#0F172A] font-semibold text-base">Recent Activity</h3>
             <button
                 onClick={() => window.location.reload()}
-                className="text-sm text-[#ff6b00] hover:text-[#cc5500] transition-colors"
+                className="text-sm font-medium text-[#0062E0] hover:text-[#0050B8] transition-colors"
             >
               Refresh
             </button>
           </div>
           {recentActivity.length === 0 ? (
               <div className="text-center py-8 text-slate-400">
-                <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <Activity className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
                 <p className="text-sm">No recent activity</p>
               </div>
           ) : (
               <div className="space-y-3">
                 {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-center gap-3 py-2 border-b border-[#1a1a1a] last:border-0">
+                    <div key={activity.id} className="flex items-center gap-3 py-2 border-b border-[#F1F5F9] last:border-0">
                       <div className={`w-2 h-2 rounded-full ${
-                          activity.type === 'task' ? 'bg-indigo-400' :
-                              activity.type === 'module' ? 'bg-[#ff6b00]' :
-                                  activity.type === 'bug' ? 'bg-red-400' :
-                                      'bg-green-400'
+                          activity.type === 'task' ? 'bg-[#0062E0]' :
+                              activity.type === 'module' ? 'bg-[#00B388]' :
+                                  activity.type === 'bug' ? 'bg-red-500' :
+                                      'bg-emerald-500'
                       }`} />
-                      <span className="text-sm text-slate-300 flex-1">{activity.action}</span>
-                      <span className="text-xs text-slate-500">{activity.time}</span>
+                      <span className="text-sm text-slate-700 flex-1">{activity.action}</span>
+                      <span className="text-xs text-slate-400">{activity.time}</span>
                     </div>
                 ))}
               </div>

@@ -439,7 +439,9 @@ public class TeamController {
                         .body(Map.of("error", "userId is required"));
             }
 
-            String userId = String.valueOf(userIdValue);
+            Long userId = userIdValue instanceof Number
+                    ? ((Number) userIdValue).longValue()
+                    : Long.parseLong(String.valueOf(userIdValue));
 
             UserEntity user = userRepository.findById(userId).orElse(null);
 
@@ -488,7 +490,7 @@ public class TeamController {
     @DeleteMapping("/{teamId}/members/{userId}")
     public ResponseEntity<?> removeMember(
             @PathVariable Long teamId,
-            @PathVariable String userId) {
+            @PathVariable Long userId) {
 
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();

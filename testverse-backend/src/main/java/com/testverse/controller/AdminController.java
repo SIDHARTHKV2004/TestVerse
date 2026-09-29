@@ -154,7 +154,7 @@ public class AdminController {
 
     @PutMapping("/users/{userId}/approve")
     public ResponseEntity<?> approveUser(
-            @PathVariable String userId) {
+            @PathVariable Long userId) {
 
         Authentication auth =
                 SecurityContextHolder.getContext().getAuthentication();
@@ -239,7 +239,7 @@ public class AdminController {
 
     @PutMapping("/users/{userId}/reject")
     public ResponseEntity<?> rejectUser(
-            @PathVariable String userId) {
+            @PathVariable Long userId) {
 
         Authentication auth =
                 SecurityContextHolder.getContext().getAuthentication();
@@ -324,7 +324,7 @@ public class AdminController {
 
     @PutMapping("/users/{userId}/suspend")
     public ResponseEntity<?> suspendUser(
-            @PathVariable String userId) {
+            @PathVariable Long userId) {
 
         Authentication auth =
                 SecurityContextHolder.getContext().getAuthentication();
@@ -409,7 +409,7 @@ public class AdminController {
 
     @PutMapping("/users/{userId}/activate")
     public ResponseEntity<?> activateUser(
-            @PathVariable String userId) {
+            @PathVariable Long userId) {
 
         Authentication auth =
                 SecurityContextHolder.getContext().getAuthentication();
@@ -495,7 +495,7 @@ public class AdminController {
 
     @DeleteMapping("/users/{userId}")
     public ResponseEntity<?> deleteUser(
-            @PathVariable String userId) {
+            @PathVariable Long userId) {
 
         Authentication auth =
                 SecurityContextHolder.getContext().getAuthentication();
@@ -538,5 +538,96 @@ public class AdminController {
         return ResponseEntity
                 .notFound()
                 .build();
+    }
+
+    // ============================================================
+    // ASSIGN / REASSIGN MENTOR
+    // ============================================================
+    @PutMapping("/users/{userId}/mentor")
+    public ResponseEntity<?> assignMentor(
+            @PathVariable Long userId,
+            @RequestBody Map<String, Object> request) {
+
+        Authentication auth =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null ||
+                !(auth.getPrincipal() instanceof UserEntity)) {
+
+            return ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .body("Authentication is required");
+        }
+
+        UserEntity currentUser =
+                (UserEntity) auth.getPrincipal();
+
+        if (currentUser.getRole() != UserRole.ADMIN) {
+
+            return ResponseEntity
+                    .status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can assign mentors");
+        }
+
+        UserEntity targetUser = userRepository.findById(userId).orElse(null);
+        if (targetUser == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        }
+
+        if (targetUser.getRole() != UserRole.TESTER && targetUser.getRole() != UserRole.DEVELOPER) {
+            return ResponseEntity.badRequest().body("Mentors can only be assigned to TESTER or DEVELOPER users");
+        }
+
+        Object mentorIdObj = request.get("mentorId");
+        if (mentorIdObj == null || mentorIdObj.toString().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Mentor ID is required");
+        }
+
+        Long mentorId;
+        try {
+            mentorId = Long.parseLong(mentorIdObj.toString().trim());
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body("Invalid mentor ID format");
+        }
+
+        UserEntity mentor = userRepository.findById(mentorId).orElse(null);
+        if (mentor == null) {
+            return ResponseEntity.badRequest().body("Selected mentor not found");
+        }
+
+        if (mentor.getRole() != UserRole.MENTOR) {
+            return ResponseEntity.badRequest().body("Selected user is not a mentor");
+        }
+
+        if (mentor.getStatus() != UserStatus.ACTIVE) {
+            return ResponseEntity.badRequest().body("Selected mentor is not active");
+        }
+
+        String expectedDepartment = (targetUser.getRole() == UserRole.TESTER) ? "TESTING" : "DEVELOPMENT";
+        String mentorDepartment = mentor.getDepartment() != null
+                ? mentor.getDepartment().trim().toUpperCase()
+                : "";
+
+        if (!expectedDepartment.equals(mentorDepartment)) {
+            return ResponseEntity.badRequest().body(
+                    "Role-mentor mismatch: " + targetUser.getRole() + " must be assigned a " + expectedDepartment + " mentor"
+            );
+        }
+
+        targetUser.setMentor(mentor);
+        if (targetUser.getDepartment() == null || targetUser.getDepartment().trim().isEmpty()) {
+            targetUser.setDepartment(expectedDepartment);
+        }
+        targetUser.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(targetUser);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Mentor assigned successfully");
+        response.put("userId", targetUser.getId());
+        response.put("mentorId", mentor.getId());
+        response.put("mentorName", mentor.getName());
+        response.put("mentorDepartment", mentor.getDepartment());
+
+        return ResponseEntity.ok(response);
     }
 }

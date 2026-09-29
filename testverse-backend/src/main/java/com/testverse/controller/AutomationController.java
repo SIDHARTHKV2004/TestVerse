@@ -41,6 +41,11 @@ public class AutomationController {
                 return ResponseEntity.status(401).build();
             }
 
+            if (user.getRole() == com.testverse.model.UserRole.DEVELOPER
+                    || (user.getRole() == com.testverse.model.UserRole.MENTOR && "DEVELOPMENT".equalsIgnoreCase(user.getDepartment()))) {
+                return ResponseEntity.status(403).body(Map.of("error", "Access denied: Developers cannot access Automation scripts. Please use DevelopingHub."));
+            }
+
             String projectId =
                     request.get("projectId") != null
                             ? String.valueOf(request.get("projectId"))
@@ -92,6 +97,11 @@ public class AutomationController {
 
         if (user == null) {
             return ResponseEntity.status(401).build();
+        }
+
+        if (user.getRole() == com.testverse.model.UserRole.DEVELOPER
+                || (user.getRole() == com.testverse.model.UserRole.MENTOR && "DEVELOPMENT".equalsIgnoreCase(user.getDepartment()))) {
+            return ResponseEntity.status(403).build();
         }
 
         return ResponseEntity.ok(

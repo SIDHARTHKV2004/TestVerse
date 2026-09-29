@@ -254,7 +254,10 @@ const TeamPage: React.FC = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-[#666666]">Loading team...</div>
+                <div className="text-slate-500 flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-[#0062E0] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm font-medium">Loading team...</span>
+                </div>
             </div>
         );
     }
@@ -263,13 +266,13 @@ const TeamPage: React.FC = () => {
     if (error && !isAdmin) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <div className="text-6xl mb-4">⚠️</div>
-                    <h2 className="text-xl font-bold text-white mb-2">Error Loading Team</h2>
-                    <p className="text-[#666666]">{error}</p>
+                <div className="text-center p-8 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs max-w-md">
+                    <div className="text-5xl mb-3">⚠️</div>
+                    <h2 className="text-xl font-bold text-[#0F172A] mb-2">Error Loading Team</h2>
+                    <p className="text-slate-500 text-sm mb-4">{error}</p>
                     <button
                         onClick={fetchData}
-                        className="mt-4 bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors"
+                        className="bg-[#0062E0] hover:bg-[#0050B8] text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm shadow-sm"
                     >
                         Retry
                     </button>
@@ -283,15 +286,15 @@ const TeamPage: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Team Management</h1>
-                    <p className="text-[#666666] text-sm">
+                    <h1 className="text-2xl font-bold text-[#0F172A]">Team Management</h1>
+                    <p className="text-slate-500 text-sm">
                         {isAdmin ? 'Manage your team and members' : 'View your team and send join requests'}
                     </p>
                 </div>
                 {isAdmin && (
                     <button
                         onClick={() => setShowModal(true)}
-                        className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                        className="bg-[#0062E0] hover:bg-[#0050B8] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all font-medium text-sm shadow-sm hover:shadow"
                     >
                         <Plus size={18} />
                         Create Team
@@ -301,26 +304,26 @@ const TeamPage: React.FC = () => {
 
             {/* Current Team */}
             {teams.length === 0 ? (
-                <div className="text-center py-16 bg-[#111111] border border-[#1a1a1a] rounded-xl">
-                    <Users size={48} className="mx-auto mb-3 text-[#444444]" />
-                    <p className="text-lg text-white">No team yet</p>
-                    <p className="text-sm text-[#666666]">
+                <div className="text-center py-16 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs">
+                    <Users size={48} className="mx-auto mb-3 text-slate-300" />
+                    <p className="text-lg font-bold text-[#0F172A]">No team yet</p>
+                    <p className="text-sm text-slate-500">
                         {isAdmin ? 'Create your first team to get started!' : 'No team available. Contact your admin.'}
                     </p>
                     {!isAdmin && availableTeams.length > 0 && (
                         <div className="mt-6 max-w-md mx-auto">
-                            <h4 className="text-sm text-[#666666] mb-3">Available Teams to Join:</h4>
+                            <h4 className="text-sm font-semibold text-slate-700 mb-3">Available Teams to Join:</h4>
                             <div className="space-y-2">
                                 {availableTeams.map((team) => (
-                                    <div key={team.id} className="flex items-center justify-between bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-3">
+                                    <div key={team.id} className="flex items-center justify-between bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3">
                                         <div className="text-left">
-                                            <p className="text-white text-sm font-medium">{team.name}</p>
-                                            <p className="text-xs text-[#666666]">{team.members?.length || 0} members</p>
+                                            <p className="text-[#0F172A] text-sm font-semibold">{team.name}</p>
+                                            <p className="text-xs text-slate-500">{team.members?.length || 0} members</p>
                                         </div>
                                         <button
                                             onClick={() => handleJoinTeam(team.id)}
                                             disabled={joining === team.id}
-                                            className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-3 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-50"
+                                            className="bg-[#0062E0] hover:bg-[#0050B8] text-white px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 shadow-xs"
                                         >
                                             {joining === team.id ? 'Joining...' : 'Join'}
                                         </button>
@@ -330,7 +333,7 @@ const TeamPage: React.FC = () => {
                         </div>
                     )}
                     {!isAdmin && availableTeams.length === 0 && (
-                        <p className="text-sm text-[#666666] mt-2">No teams available to join at the moment.</p>
+                        <p className="text-sm text-slate-400 mt-2">No teams available to join at the moment.</p>
                     )}
                 </div>
             ) : (
@@ -338,24 +341,24 @@ const TeamPage: React.FC = () => {
                     {/* Team Info Card */}
                     <div className="lg:col-span-1">
                         {teams.map((team) => (
-                            <div key={team.id} className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-5">
+                            <div key={team.id} className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs">
                                 <div className="flex items-start justify-between">
                                     <div>
-                                        <h3 className="text-lg font-bold text-white">{team.name}</h3>
-                                        <p className="text-sm text-[#666666] mt-1">{team.description || 'No description'}</p>
-                                        <div className="flex items-center gap-2 mt-2 text-xs text-[#666666]">
-                                            <User size={14} />
-                                            <span>Lead: {team.admin?.name || 'Admin'}</span>
+                                        <h3 className="text-lg font-bold text-[#0F172A]">{team.name}</h3>
+                                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">{team.description || 'No description'}</p>
+                                        <div className="flex items-center gap-2 mt-3 text-xs text-slate-500">
+                                            <User size={14} className="text-[#0062E0]" />
+                                            <span>Lead: <strong className="text-slate-700">{team.admin?.name || 'Admin'}</strong></span>
                                             <span>•</span>
-                                            <Users size={14} />
+                                            <Users size={14} className="text-[#00B388]" />
                                             <span>{team.members?.length || 0} Members</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {isUserInTeam() && (
-                                    <div className="mt-4 p-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-lg text-center text-sm">
-                                        ✅ You are a member of this team
+                                    <div className="mt-4 p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-center text-xs font-semibold">
+                                        ✓ You are a member of this team
                                     </div>
                                 )}
                             </div>
@@ -364,34 +367,34 @@ const TeamPage: React.FC = () => {
 
                     {/* Members List */}
                     <div className="lg:col-span-2">
-                        <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-white font-medium flex items-center gap-2">
-                                    <Users size={18} className="text-[#ff6b00]" />
+                        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs">
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#F1F5F9]">
+                                <h3 className="text-[#0F172A] font-bold flex items-center gap-2">
+                                    <Users size={18} className="text-[#0062E0]" />
                                     Team Members
                                 </h3>
-                                <span className="text-sm text-[#666666]">{selectedTeam?.members?.length || 0} members</span>
+                                <span className="text-xs font-medium text-slate-500">{selectedTeam?.members?.length || 0} members</span>
                             </div>
                             <div className="space-y-2">
                                 {selectedTeam?.members?.map((member) => (
-                                    <div key={member.id} className="flex items-center justify-between bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-3">
+                                    <div key={member.id} className="flex items-center justify-between bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 hover:border-slate-300 transition-colors">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-[#ff6b00]/20 flex items-center justify-center text-[#ff6b00] font-bold">
+                                            <div className="w-10 h-10 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center text-[#0062E0] font-bold text-sm">
                                                 {member.name?.charAt(0) || 'U'}
                                             </div>
                                             <div>
-                                                <p className="text-white text-sm font-medium">
+                                                <p className="text-[#0F172A] text-sm font-semibold flex items-center gap-2">
                                                     {member.name}
                                                     {member.id === user?.id && (
-                                                        <span className="ml-2 text-[#ff6b00] text-xs">(You)</span>
+                                                        <span className="text-[#0062E0] text-xs bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 font-medium">(You)</span>
                                                     )}
                                                 </p>
-                                                <p className="text-xs text-[#666666] flex items-center gap-2">
+                                                <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
                                                     @{member.username || member.email}
-                                                    <span className="text-[#444444]">•</span>
-                                                    {member.role}
+                                                    <span className="text-slate-300">•</span>
+                                                    <span>{member.role}</span>
                                                     {member.role === 'ADMIN' && (
-                                                        <span className="text-xs text-[#ff6b00]">👑 Admin</span>
+                                                        <span className="text-xs font-semibold text-indigo-600">👑 Admin</span>
                                                     )}
                                                 </p>
                                             </div>
@@ -399,7 +402,8 @@ const TeamPage: React.FC = () => {
                                         {isAdmin && member.id !== user?.id && (
                                             <button
                                                 onClick={() => handleRemoveMember(selectedTeam.id, member.id)}
-                                                className="text-[#666666] hover:text-red-500 transition-colors"
+                                                className="text-slate-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Remove member"
                                             >
                                                 <Trash2 size={16} />
                                             </button>
@@ -407,7 +411,7 @@ const TeamPage: React.FC = () => {
                                     </div>
                                 ))}
                                 {(!selectedTeam?.members || selectedTeam.members.length === 0) && (
-                                    <p className="text-center text-[#666666] py-4">No members yet</p>
+                                    <p className="text-center text-slate-400 py-6 text-sm">No members yet</p>
                                 )}
                             </div>
                         </div>
@@ -417,29 +421,29 @@ const TeamPage: React.FC = () => {
 
             {/* Add Member Section - Admin Only */}
             {isAdmin && teams.length > 0 && selectedTeam && (
-                <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-5">
-                    <h3 className="text-white font-medium mb-4 flex items-center gap-2">
-                        <UserPlus size={18} className="text-[#ff6b00]" />
+                <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-xs">
+                    <h3 className="text-[#0F172A] font-bold mb-4 flex items-center gap-2">
+                        <UserPlus size={18} className="text-[#0062E0]" />
                         Add Members to Team
                     </h3>
                     {getAvailableUsers().length === 0 ? (
-                        <p className="text-[#666666] text-center py-4">No users available to add</p>
+                        <p className="text-slate-400 text-center py-4 text-sm">No users available to add</p>
                     ) : (
                         <div className="space-y-2">
                             {getAvailableUsers().map((pendingUser) => (
-                                <div key={pendingUser.id} className="flex items-center justify-between bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-3">
+                                <div key={pendingUser.id} className="flex items-center justify-between bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 hover:border-slate-300 transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-[#ff6b00]/20 flex items-center justify-center text-[#ff6b00] font-bold">
+                                        <div className="w-10 h-10 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center text-[#0062E0] font-bold text-sm">
                                             {pendingUser.name?.charAt(0) || 'U'}
                                         </div>
                                         <div>
-                                            <p className="text-white text-sm font-medium">{pendingUser.name}</p>
-                                            <p className="text-xs text-[#666666]">@{pendingUser.username || pendingUser.email} • {pendingUser.role}</p>
+                                            <p className="text-[#0F172A] text-sm font-semibold">{pendingUser.name}</p>
+                                            <p className="text-xs text-slate-500">@{pendingUser.username || pendingUser.email} • {pendingUser.role}</p>
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => handleAddMember(selectedTeam.id, pendingUser.id)}
-                                        className="bg-[#ff6b00] hover:bg-[#cc5500] text-white px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1"
+                                        className="bg-[#0062E0] hover:bg-[#0050B8] text-white px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all shadow-xs flex items-center gap-1.5"
                                     >
                                         <UserPlus size={14} />
                                         Add to Team
@@ -453,42 +457,47 @@ const TeamPage: React.FC = () => {
 
             {/* Create Team Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-                    <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-6 max-w-md w-full">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-white">Create Team</h2>
-                            <button onClick={() => setShowModal(false)} className="text-[#666666] hover:text-white">
-                                <X size={20} />
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 max-w-md w-full shadow-2xl">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#F1F5F9]">
+                            <h2 className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
+                                <Users size={18} className="text-[#0062E0]" />
+                                Create Team
+                            </h2>
+                            <button onClick={() => setShowModal(false)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                                <X size={18} />
                             </button>
                         </div>
                         <form onSubmit={handleCreateTeam} className="space-y-4">
                             <div>
-                                <label className="block text-sm text-[#666666] mb-1">Team Name</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Team Name</label>
                                 <input
                                     type="text"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2.5 text-sm text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all"
                                     placeholder="Enter team name"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm text-[#666666] mb-1">Description</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                                 <textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     rows={3}
-                                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg px-4 py-2 text-white placeholder-[#666666] focus:outline-none focus:border-[#ff6b00]"
+                                    className="w-full bg-white border border-[#CBD5E1] rounded-lg px-4 py-2.5 text-sm text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all"
                                     placeholder="Describe your team"
                                 />
                             </div>
-                            <button
-                                type="submit"
-                                className="w-full bg-[#ff6b00] hover:bg-[#cc5500] text-white px-4 py-2 rounded-lg transition-colors"
-                            >
-                                Create Team
-                            </button>
+                            <div className="pt-2">
+                                <button
+                                    type="submit"
+                                    className="w-full bg-[#0062E0] hover:bg-[#0050B8] text-white px-4 py-2.5 rounded-lg transition-all font-medium text-sm shadow-sm hover:shadow"
+                                >
+                                    Create Team
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>

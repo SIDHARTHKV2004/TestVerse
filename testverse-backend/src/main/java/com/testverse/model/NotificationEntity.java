@@ -42,8 +42,15 @@ public class NotificationEntity {
     @Builder.Default
     private Boolean isAccepted = false;
 
+    @Column(name = "is_task_viewed")
+    @Builder.Default
+    private Boolean isTaskViewed = false;
+
+    @Column(name = "task_id")
+    private String taskId;
+
     @Column(name = "sender_id")
-    private String senderId;
+    private Long senderId;
 
     @Column(name = "team_id")
     private Long teamId;

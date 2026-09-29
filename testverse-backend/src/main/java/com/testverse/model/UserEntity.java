@@ -9,7 +9,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Table(name = "users")
@@ -20,8 +19,9 @@ import java.util.UUID;
 public class UserEntity implements UserDetails {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false, updatable = false)
-    private String id;
+    private Long id;
 
     @Column(unique = true, nullable = false)
     private String email;
@@ -67,12 +67,8 @@ public class UserEntity implements UserDetails {
 
     private LocalDateTime lastActiveAt;
 
-    @PrePersist
-    public void generateId() {
-        if (id == null || id.isBlank()) {
-            id = UUID.randomUUID().toString();
-        }
-    }
+    @Column(name = "last_general_read_id")
+    private Long lastGeneralReadId;
 
     @Override
     public String getPassword() {

@@ -12,15 +12,14 @@ import java.time.LocalDateTime;
 @Builder
 public class BugReportEntity {
 
-    // Bug ID - Long
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(nullable = false, updatable = false)
+    private String id;
 
     @Column(nullable = false)
     private String title;
 
-    @Column(nullable = false, length = 1000)
+    @Column(length = 1000)
     private String description;
 
     private String severity;
@@ -36,21 +35,27 @@ public class BugReportEntity {
     @Column(name = "actual_result", length = 1000)
     private String actualResult;
 
-    // User ID - String because UserEntity.id is String
+    // User ID - Long because UserEntity.id is Long
     @Column(name = "reporter_id")
-    private String reporterId;
+    private Long reporterId;
 
     @Column(name = "reporter_name")
     private String reporterName;
 
-    // User ID - String because UserEntity.id is String
+    // User ID - Long because UserEntity.id is Long
     @Column(name = "assignee_id")
-    private String assigneeId;
+    private Long assigneeId;
 
     @Column(name = "assignee_name")
     private String assigneeName;
 
-    // Project ID - Long because ProjectEntity.id is Long
+    @Column(name = "reporter_mentor_id")
+    private Long reporterMentorId;
+
+    @Column(name = "assignee_mentor_id")
+    private Long assigneeMentorId;
+
+    // Project ID - String because ProjectEntity.id is String
     @Column(name = "project_id")
     private String projectId;
 
@@ -59,6 +64,9 @@ public class BugReportEntity {
 
     @Column(name = "screenshot_url")
     private String screenshotUrl;
+
+    @Column(name = "video_url")
+    private String videoUrl;
 
     @Lob
     @Column(name = "image_data")
@@ -72,19 +80,35 @@ public class BugReportEntity {
 
     @PrePersist
     protected void onCreate() {
+        if (id == null || id.isBlank()) {
+            id = java.util.UUID.randomUUID().toString();
+        }
+
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
 
-        if (status == null) {
+        if (status == null || status.isBlank()) {
             status = "OPEN";
         }
 
-        if (severity == null) {
+        if (severity == null || severity.isBlank()) {
             severity = "MEDIUM";
         }
 
-        if (priority == null) {
+        if (priority == null || priority.isBlank()) {
             priority = "MEDIUM";
+        }
+
+        if (stepsToReproduce == null) {
+            stepsToReproduce = "";
+        }
+
+        if (expectedResult == null) {
+            expectedResult = "";
+        }
+
+        if (actualResult == null) {
+            actualResult = "";
         }
     }
 

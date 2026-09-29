@@ -103,5 +103,33 @@ public class DataInitializer implements CommandLineRunner {
                 userRepository.save(existingMentor);
             }
         }
+
+        // ============================================================
+        // CREATE / UPDATE DEVELOPMENT MENTOR
+        // ============================================================
+        var devMentorOpt = userRepository.findByEmail("devmentor@testverse.io");
+        if (devMentorOpt.isEmpty()) {
+
+            UserEntity devMentor = UserEntity.builder()
+                    .email("devmentor@testverse.io")
+                    .username("devmentor@testverse.io")
+                    .passwordHash(passwordEncoder.encode("mentor123"))
+                    .name("Development Mentor")
+                    .role(UserRole.MENTOR)
+                    .status(UserStatus.ACTIVE)
+                    .department("DEVELOPMENT")
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            userRepository.save(devMentor);
+        } else {
+            UserEntity existingDevMentor = devMentorOpt.get();
+            if (existingDevMentor.getDepartment() == null || existingDevMentor.getDepartment().isBlank()) {
+                existingDevMentor.setDepartment("DEVELOPMENT");
+                existingDevMentor.setUpdatedAt(LocalDateTime.now());
+                userRepository.save(existingDevMentor);
+            }
+        }
     }
 }

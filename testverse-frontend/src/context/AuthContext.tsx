@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi } from '../services/api';
+import { authApi, attendanceApi } from '../services/api';
 
 interface AuthContextType {
   user: any | null;
@@ -22,10 +22,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' || 'dark';
+    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' || 'light';
     setTheme(savedTheme);
     document.documentElement.classList.toggle('dark', savedTheme === 'dark');
 
@@ -34,6 +34,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (token && userData) {
       try {
         setUser(JSON.parse(userData));
+        // Record daily attendance for returning authenticated user
+        attendanceApi.checkIn().catch(() => {});
       } catch (e) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -48,8 +50,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       email: data.email,
       name: data.name,
       role: data.role,
-      userId: data.userId,
+      userId: data.userId || data.id,
+      id: data.userId || data.id,
     });
+    // Record daily attendance upon successful login
+    attendanceApi.checkIn().catch(() => {});
   };
 
   const logout = (): void => {

@@ -13,4 +13,6 @@ testverse-frontend/dist/
 
 # OS files
 Thumbs.db
-.DS_Store
+.DS_Storetestverse_local_backup.sql
+testverse_user_id_migration.sql
+testverse_local_backup.sql

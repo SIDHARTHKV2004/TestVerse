@@ -57,8 +57,10 @@ public class NotificationController {
                         ));
             }
 
-            String userId =
-                    String.valueOf(request.get("userId"));
+            Object userIdObj = request.get("userId");
+            Long userId = userIdObj instanceof Number
+                    ? ((Number) userIdObj).longValue()
+                    : Long.parseLong(String.valueOf(userIdObj));
 
             Long teamId =
                     ((Number) request.get("teamId")).longValue();
@@ -490,6 +492,9 @@ public class NotificationController {
 
 
             notification.setIsRead(true);
+            if ("TASK".equalsIgnoreCase(notification.getType())) {
+                notification.setIsTaskViewed(true);
+            }
 
             notification.setUpdatedAt(
                     LocalDateTime.now()
@@ -515,6 +520,98 @@ public class NotificationController {
                             "error",
                             e.getMessage()
                     ));
+        }
+    }
+
+
+    // ============================================================
+    // MARK TASK NOTIFICATIONS AS READ (FOR TASK ATTENTION CLEARING)
+    // ============================================================
+
+    @PatchMapping("/tasks/read")
+    public ResponseEntity<?> markTaskNotificationsAsRead(Authentication auth) {
+        try {
+            UserEntity user = userRepository
+                    .findByUsername(auth.getName())
+                    .orElse(null);
+
+            if (user == null) {
+                return ResponseEntity
+                        .status(401)
+                        .body(Map.of("error", "User not found"));
+            }
+
+            List<NotificationEntity> taskNotifications =
+                    notificationRepository.findByUserIdAndType(user.getId(), "TASK");
+
+            int updatedCount = 0;
+            for (NotificationEntity notification : taskNotifications) {
+                boolean changed = false;
+                if (!Boolean.TRUE.equals(notification.getIsTaskViewed())) {
+                    notification.setIsTaskViewed(true);
+                    changed = true;
+                }
+                if (!Boolean.TRUE.equals(notification.getIsRead())) {
+                    notification.setIsRead(true);
+                    changed = true;
+                }
+                if (changed) {
+                    notification.setUpdatedAt(LocalDateTime.now());
+                    notificationRepository.save(notification);
+                    updatedCount++;
+                }
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "message", "Task notifications marked as read",
+                    "updatedCount", updatedCount
+            ));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+
+    // ============================================================
+    // MARK ALL NOTIFICATIONS AS READ (WHEN BELL DROPDOWN IS OPENED)
+    // ============================================================
+
+    @PatchMapping("/read-all")
+    public ResponseEntity<?> markAllNotificationsAsRead(Authentication auth) {
+        try {
+            UserEntity user = userRepository
+                    .findByUsername(auth.getName())
+                    .orElse(null);
+
+            if (user == null) {
+                return ResponseEntity
+                        .status(401)
+                        .body(Map.of("error", "User not found"));
+            }
+
+            List<NotificationEntity> unreadNotifications =
+                    notificationRepository.findByUserIdAndIsRead(user.getId(), false);
+
+            int updatedCount = 0;
+            for (NotificationEntity notification : unreadNotifications) {
+                notification.setIsRead(true);
+                notification.setUpdatedAt(LocalDateTime.now());
+                notificationRepository.save(notification);
+                updatedCount++;
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "message", "All notifications marked as read",
+                    "updatedCount", updatedCount
+            ));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of("error", e.getMessage()));
         }
     }
 

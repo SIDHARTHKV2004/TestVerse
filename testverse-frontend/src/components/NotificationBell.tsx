@@ -5,9 +5,12 @@ import {
     Mail,
     MessageSquare,
     UserPlus,
-    X
+    X,
+    ClipboardList
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAttention } from '../context/AttentionContext';
+import { AttentionDot } from './AttentionDot';
 
 interface Notification {
     id: string;
@@ -27,6 +30,7 @@ const API_BASE_URL =
 const NotificationBell: React.FC = () => {
 
     const navigate = useNavigate();
+    const { hasBellAttention, markBellAttentionAsRead, refreshAttention } = useAttention();
 
     const [notifications, setNotifications] =
         useState<Notification[]>([]);
@@ -254,6 +258,17 @@ const NotificationBell: React.FC = () => {
 
 
             /*
+             * TASK notification
+             *
+             * Close the notification dropdown and navigate to Tasks.
+             */
+            if (notification.type === 'TASK') {
+                setShowDropdown(false);
+                navigate('/tasks');
+                return;
+            }
+
+            /*
              * Registration notification
              *
              * Clicking this takes the admin
@@ -427,7 +442,7 @@ const NotificationBell: React.FC = () => {
                     return (
                         <UserPlus
                             size={16}
-                            className="text-[#ff6b00]"
+                            className="text-[#0062E0]"
                         />
                     );
 
@@ -436,7 +451,15 @@ const NotificationBell: React.FC = () => {
                     return (
                         <MessageSquare
                             size={16}
-                            className="text-blue-400"
+                            className="text-[#0062E0]"
+                        />
+                    );
+
+                case 'TASK':
+                    return (
+                        <ClipboardList
+                            size={16}
+                            className="text-[#00B388]"
                         />
                     );
 
@@ -445,7 +468,7 @@ const NotificationBell: React.FC = () => {
                     return (
                         <Bell
                             size={16}
-                            className="text-[#ff6b00]"
+                            className="text-[#0062E0]"
                         />
                     );
 
@@ -454,7 +477,7 @@ const NotificationBell: React.FC = () => {
                     return (
                         <Mail
                             size={16}
-                            className="text-[#666666]"
+                            className="text-[#64748B]"
                         />
                     );
             }
@@ -473,24 +496,28 @@ const NotificationBell: React.FC = () => {
         >
 
             <button
-                onClick={() =>
-                    setShowDropdown(!showDropdown)
-                }
+                onClick={async () => {
+                    const nextState = !showDropdown;
+                    setShowDropdown(nextState);
+                    if (nextState) {
+                        await markBellAttentionAsRead();
+                        setUnreadCount(0);
+                    }
+                }}
 
-                className="relative p-2 rounded-lg hover:bg-[#1a1a1a] transition-colors"
+                className="relative p-2 rounded-lg hover:bg-[#F1F5F9] transition-colors"
+                title="Notifications"
             >
 
                 <Bell
-                    size={20}
-                    className="text-[#666666]"
+                    size={19}
+                    className="text-[#64748B] hover:text-[#0F172A]"
                 />
 
-                {unreadCount > 0 && (
-
-                    <span
-                        className="absolute top-1 right-1 w-2 h-2 bg-[#ff6b00] rounded-full animate-pulse"
-                    />
-
+                {(unreadCount > 0 || hasBellAttention) && (
+                    <span className="absolute top-1 right-1">
+                        <AttentionDot size="sm" />
+                    </span>
                 )}
 
             </button>
@@ -499,20 +526,20 @@ const NotificationBell: React.FC = () => {
             {showDropdown && (
 
                 <div
-                    className="absolute right-0 mt-2 w-96 bg-[#111111] border border-[#1a1a1a] rounded-xl shadow-lg max-h-96 overflow-y-auto z-50"
+                    className="absolute right-0 mt-2 w-96 bg-white border border-[#E2E8F0] rounded-xl shadow-2xl max-h-96 overflow-y-auto z-50"
                 >
 
                     <div
-                        className="p-3 border-b border-[#1a1a1a] flex items-center justify-between sticky top-0 bg-[#111111]"
+                        className="p-3.5 border-b border-[#E2E8F0] flex items-center justify-between sticky top-0 bg-white z-10"
                     >
 
-                        <h3 className="text-white font-medium">
+                        <h3 className="text-[#0F172A] font-semibold text-sm">
                             Notifications
                         </h3>
 
                         {unreadCount > 0 && (
 
-                            <span className="text-xs text-[#ff6b00]">
+                            <span className="text-xs font-semibold text-[#0062E0] bg-[#EFF6FF] px-2 py-0.5 rounded-full border border-[#BFDBFE]">
                                 {unreadCount} new
                             </span>
 
@@ -525,7 +552,7 @@ const NotificationBell: React.FC = () => {
 
                         {notifications.length === 0 ? (
 
-                            <p className="text-center text-[#666666] py-4">
+                            <p className="text-center text-[#94A3B8] text-sm py-6">
                                 No notifications
                             </p>
 
@@ -559,17 +586,17 @@ const NotificationBell: React.FC = () => {
                                             }}
 
                                             className={
-                                                'p-3 rounded-lg mb-2 transition-colors ' +
+                                                'p-3 rounded-lg mb-1.5 transition-all text-left ' +
 
                                                 (
                                                     !notification.isRead
-                                                        ? 'bg-[#1a1a1a] border border-[#2a2a2a]'
-                                                        : 'bg-[#0a0a0a]'
+                                                        ? 'bg-[#EFF6FF] border border-[#BFDBFE] shadow-sm'
+                                                        : 'bg-white border border-[#F1F5F9] hover:bg-[#F8FAFC]'
                                                 ) +
 
                                                 (
                                                     isRegistrationRequest
-                                                        ? ' cursor-pointer hover:bg-[#222222]'
+                                                        ? ' cursor-pointer hover:border-[#0062E0]'
                                                         : ''
                                                 )
                                             }
@@ -586,19 +613,19 @@ const NotificationBell: React.FC = () => {
                                                 </div>
 
 
-                                                <div className="flex-1">
+                                                <div className="flex-1 min-w-0">
 
-                                                    <p className="text-sm text-white font-medium">
+                                                    <p className="text-sm text-[#0F172A] font-semibold">
                                                         {notification.title}
                                                     </p>
 
 
-                                                    <p className="text-xs text-[#666666]">
+                                                    <p className="text-xs text-[#64748B] mt-0.5">
                                                         {notification.message}
                                                     </p>
 
 
-                                                    <p className="text-[10px] text-[#444444] mt-1">
+                                                    <p className="text-[10px] text-[#94A3B8] mt-1 font-mono">
 
                                                         {new Date(
                                                             notification.createdAt
@@ -609,8 +636,8 @@ const NotificationBell: React.FC = () => {
 
                                                     {isRegistrationRequest && (
 
-                                                        <p className="text-xs text-[#ff6b00] mt-2">
-                                                            Click to review registration
+                                                        <p className="text-xs text-[#0062E0] font-medium mt-1.5">
+                                                            Click to review registration →
                                                         </p>
 
                                                     )}
@@ -637,7 +664,7 @@ const NotificationBell: React.FC = () => {
                                                                         )
                                                                     }
 
-                                                                    className="bg-green-500/20 hover:bg-green-500 text-green-400 hover:text-white px-3 py-1 rounded-lg text-xs transition-colors flex items-center gap-1"
+                                                                    className="bg-[#E6F9F4] hover:bg-[#00B388] text-[#008766] hover:text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1"
                                                                 >
 
                                                                     <Check
@@ -656,7 +683,7 @@ const NotificationBell: React.FC = () => {
                                                                         )
                                                                     }
 
-                                                                    className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white px-3 py-1 rounded-lg text-xs transition-colors flex items-center gap-1"
+                                                                    className="bg-red-50 hover:bg-red-600 text-red-600 hover:text-white px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1"
                                                                 >
 
                                                                     <X
@@ -677,7 +704,7 @@ const NotificationBell: React.FC = () => {
 
                                                         notification.isAccepted && (
 
-                                                            <span className="text-xs text-green-400">
+                                                            <span className="text-xs text-[#00B388] font-medium mt-1 inline-block">
                                                                 Accepted
                                                             </span>
 
@@ -691,7 +718,7 @@ const NotificationBell: React.FC = () => {
 
                                                         !notification.isAccepted && (
 
-                                                            <span className="text-xs text-red-400">
+                                                            <span className="text-xs text-red-600 font-medium mt-1 inline-block">
                                                                 Declined
                                                             </span>
 

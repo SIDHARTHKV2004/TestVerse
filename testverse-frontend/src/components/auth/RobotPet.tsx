@@ -1,369 +1,301 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import './RobotPet.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RobotPet — Procedural Three.js robot companion on the TestVerse login card.
+// RobotPet — WALL-E / Shimeji-style Three.js robot that clings to the top rim
+// of the TestVerse login card. Ported faithfully from reference source code.
 //
-// Architecture:
-//  • Transparent WebGLRenderer canvas absolutely positioned above the card.
-//  • Robot built entirely from Three.js primitives (no external models/images).
-//  • Cursor tracked via document mousemove (pointer-events:none on canvas).
-//  • Password-field focus detected via document focusin/focusout bubbling.
-//  • All resources disposed on unmount — zero memory leaks.
+// Key behaviors (matching reference):
+//  • posX ∈ [-1.85, 1.85] world units, mapped from cursor x over canvas rect
+//  • posX += (targetPosX - posX) * 0.06  — smooth crawl interpolation
+//  • walkCycle += 0.22 per frame when isMoving — alternating arm wobble 0.35
+//  • body waddle: rotation.z = sin * 0.08, vertical hop: abs(sin) * 0.06
+//  • headGroup.lookAt(currentLookAt), lerp 0.09 — smooth binocular tracking
+//  • pupils clamped ±0.06 inside amber lenses
+//  • isReaching: right arm extends toward cursor when proximity < 1.4
+//  • isHidingPassword: robot ducks + head droops for privacy
+//  • speech bubble: positioned from projected 3D head world position
+//  • ResizeObserver keeps canvas synced to card width
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface RobotPetProps {
   cardRef: React.RefObject<HTMLDivElement>;
 }
 
-// ── Speech bubble messages ────────────────────────────────────────────────────
-const IDLE_MESSAGES = ['Hi! 👋', 'Hello!', 'Watching 👀', 'TestVerse!', '...', 'Boop!'];
-const PASSWORD_MESSAGE = 'Privacy mode 🤫';
+// ── Speech bubble messages ─────────────────────────────────────────────────
+const IDLE_MSGS = [
+  'Watching 👀', 'Hi! 👋', 'TestVerse! 🤖', '...', 'Boop!', 'Hello!',
+];
+const PASS_MSG  = '🙈 PRIVACY MODE!';
 
-// ── Material helpers ──────────────────────────────────────────────────────────
-function mat(color: number, options: Partial<THREE.MeshStandardMaterialParameters> = {}): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.75, ...options });
+// ── Procedural weathered texture (painted rust + scratches, no images) ──────
+function makeWeatheredTex(): THREE.CanvasTexture {
+  const c  = document.createElement('canvas');
+  c.width  = 256;
+  c.height = 256;
+  const cx = c.getContext('2d')!;
+
+  // Base amber
+  cx.fillStyle = '#c59d53';
+  cx.fillRect(0, 0, 256, 256);
+
+  // Rust / grime speckles
+  for (let i = 0; i < 340; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const r = Math.random() * 9 + 2;
+    cx.fillStyle = Math.random() > 0.5
+      ? 'rgba(74,45,18,0.3)' : 'rgba(45,45,45,0.25)';
+    cx.beginPath();
+    cx.arc(x, y, r, 0, Math.PI * 2);
+    cx.fill();
+  }
+  // Metallic scratches
+  cx.strokeStyle = 'rgba(235,235,235,0.32)';
+  cx.lineWidth = 1;
+  for (let i = 0; i < 20; i++) {
+    const sx = Math.random() * 256;
+    const sy = Math.random() * 256;
+    cx.beginPath();
+    cx.moveTo(sx, sy);
+    cx.lineTo(sx + (Math.random() - 0.5) * 40, sy + (Math.random() - 0.5) * 40);
+    cx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
 }
 
-// ── Build robot group ─────────────────────────────────────────────────────────
-function buildRobot(): {
-  group: THREE.Group;
-  parts: {
-    body: THREE.Mesh;
-    head: THREE.Group;
-    headPivot: THREE.Group;
-    leftEyePupil: THREE.Mesh;
-    rightEyePupil: THREE.Mesh;
-    leftArm: THREE.Group;
-    rightArm: THREE.Group;
-    leftForearm: THREE.Group;
-    rightForearm: THREE.Group;
-    leftUpperArm: THREE.Mesh;
-    rightUpperArm: THREE.Mesh;
-    leftLowerArm: THREE.Mesh;
-    rightLowerArm: THREE.Mesh;
-    leftClaw: THREE.Group;
-    rightClaw: THREE.Group;
-    eyeLens: { left: THREE.Mesh; right: THREE.Mesh };
-    frontPlate: THREE.Mesh;
-    track: { left: THREE.Mesh; right: THREE.Mesh };
-  };
-  disposables: Array<THREE.BufferGeometry | THREE.Material>;
-} {
-  const group = new THREE.Group();
-  const disposables: Array<THREE.BufferGeometry | THREE.Material> = [];
+// ─────────────────────────────────────────────────────────────────────────────
+// buildWalle — WALL-E procedural rig
+//   Returns the root group plus all the parts that need to be animated.
+// ─────────────────────────────────────────────────────────────────────────────
+interface WalleParts {
+  root:         THREE.Group;
+  headGroup:    THREE.Group;
+  leftEyeBox:   THREE.Group;
+  rightEyeBox:  THREE.Group;
+  leftPupil:    THREE.Mesh;
+  rightPupil:   THREE.Mesh;
+  leftBrow:     THREE.Mesh;
+  rightBrow:    THREE.Mesh;
+  leftArmGroup: THREE.Group;
+  rightArmGroup:THREE.Group;
+  leftForearm:  THREE.Group;
+  rightForearm: THREE.Group;
+  rightClawA:   THREE.Mesh;
+  rightClawB:   THREE.Mesh;
+  disposables:  Array<THREE.BufferGeometry | THREE.Material | THREE.CanvasTexture>;
+}
 
-  function mesh(geo: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
-    disposables.push(geo, material);
-    return new THREE.Mesh(geo, material);
+function buildWalle(): WalleParts {
+  const disposables: Array<THREE.BufferGeometry | THREE.Material | THREE.CanvasTexture> = [];
+
+  function mesh(geo: THREE.BufferGeometry, mat: THREE.Material): THREE.Mesh {
+    disposables.push(geo, mat);
+    return new THREE.Mesh(geo, mat);
   }
 
-  // ── Colors ──────────────────────────────────────────────────────────────
-  const BODY_COLOR    = 0xd4820a; // warm amber/golden
-  const DARK_METAL    = 0x1a1a2e; // very dark navy
-  const MID_METAL     = 0x2d3561; // dark steel blue
-  const LIGHT_METAL   = 0x4a5580;
-  const EYE_GLOW      = 0x38bdf8; // cyan — matches TestVerse accent
-  const PUPIL_COLOR   = 0x0a1628;
-  const ACCENT_RED    = 0xe63946;
-  const TRACK_COLOR   = 0x151520;
+  const weatheredTex = makeWeatheredTex();
+  disposables.push(weatheredTex);
 
-  // ── Body chassis ─────────────────────────────────────────────────────────
-  const bodyGeo = new THREE.BoxGeometry(1.0, 0.85, 0.7);
-  const bodyMat = mat(BODY_COLOR, { roughness: 0.5, metalness: 0.7 });
-  const body = mesh(bodyGeo, bodyMat);
-  body.position.y = 0;
-  body.castShadow = true;
-  group.add(body);
-
-  // Front plate
-  const plateGeo = new THREE.BoxGeometry(0.72, 0.6, 0.08);
-  const plateMat = mat(DARK_METAL, { roughness: 0.3, metalness: 0.9 });
-  const frontPlate = mesh(plateGeo, plateMat);
-  frontPlate.position.set(0, 0, 0.37);
-  body.add(frontPlate);
-
-  // Small accent indicator (red dot)
-  const dotGeo = new THREE.SphereGeometry(0.06, 8, 8);
-  const dotMat = mat(ACCENT_RED, { emissive: new THREE.Color(ACCENT_RED), emissiveIntensity: 0.8 });
-  const dot = mesh(dotGeo, dotMat);
-  dot.position.set(-0.15, 0.05, 0.42);
-  body.add(dot);
-
-  // Yellow warning stripe bar on front
-  const stripeGeo = new THREE.BoxGeometry(0.5, 0.1, 0.05);
-  const stripeMat = mat(0xf5c518, { roughness: 0.6, metalness: 0.3 });
-  const stripe1 = mesh(stripeGeo, stripeMat);
-  stripe1.position.set(0, -0.15, 0.42);
-  body.add(stripe1);
-
-  // Green indicator strip
-  const greenGeo = new THREE.BoxGeometry(0.28, 0.07, 0.05);
-  const greenMat = mat(0x00e676, { emissive: new THREE.Color(0x00e676), emissiveIntensity: 0.5 });
-  const greenStrip = mesh(greenGeo, greenMat);
-  greenStrip.position.set(0.1, 0.1, 0.42);
-  body.add(greenStrip);
-
-  // Shoulder ridges
-  [-0.55, 0.55].forEach((x) => {
-    const ridgeGeo = new THREE.BoxGeometry(0.12, 0.55, 0.6);
-    const ridgeMat = mat(MID_METAL, { roughness: 0.4, metalness: 0.85 });
-    const ridge = mesh(ridgeGeo, ridgeMat);
-    ridge.position.set(x, 0.12, 0);
-    group.add(ridge);
+  // ── Materials ──────────────────────────────────────────────────────────────
+  const yellowBodyMat = new THREE.MeshStandardMaterial({
+    map: weatheredTex, roughness: 0.5, metalness: 0.25,
   });
+  disposables.push(yellowBodyMat);
 
-  // ── Tank tracks ──────────────────────────────────────────────────────────
-  const trackGeo = new THREE.BoxGeometry(0.18, 0.38, 0.72);
-  const trackMat = mat(TRACK_COLOR, { roughness: 0.8, metalness: 0.4 });
-  const leftTrack = mesh(new THREE.BoxGeometry(0.18, 0.38, 0.72), trackMat.clone());
-  const rightTrack = mesh(new THREE.BoxGeometry(0.18, 0.38, 0.72), trackMat.clone());
-  disposables.push(trackGeo);
-  leftTrack.position.set(-0.62, -0.32, 0);
-  rightTrack.position.set(0.62, -0.32, 0);
-  group.add(leftTrack, rightTrack);
-
-  // Track wheels (small cylinders on sides)
-  [[-0.62, 0.62]].flat().forEach((x) => {
-    [-0.28, 0, 0.28].forEach((z) => {
-      const wGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.1, 10);
-      const wMat = mat(LIGHT_METAL, { roughness: 0.3, metalness: 0.9 });
-      const w = mesh(wGeo, wMat);
-      w.rotation.x = Math.PI / 2;
-      w.position.set(x, -0.32, z);
-      group.add(w);
-    });
+  const metalMat = new THREE.MeshStandardMaterial({
+    color: 0x94a3b8, roughness: 0.32, metalness: 0.82,
   });
+  disposables.push(metalMat);
 
-  // ── Neck ─────────────────────────────────────────────────────────────────
-  const neckGeo = new THREE.CylinderGeometry(0.1, 0.14, 0.28, 10);
-  const neckMat = mat(DARK_METAL, { roughness: 0.3, metalness: 0.9 });
-  const neck = mesh(neckGeo, neckMat);
-  neck.position.y = 0.56;
-  group.add(neck);
+  const darkSteelMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b, roughness: 0.55, metalness: 0.85,
+  });
+  disposables.push(darkSteelMat);
 
-  // ── Head group ───────────────────────────────────────────────────────────
-  const headPivot = new THREE.Group();
-  headPivot.position.y = 0.7;
-  group.add(headPivot);
+  const amberLensMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b, emissive: new THREE.Color(0x78350f),
+    roughness: 0.1, metalness: 0.1,
+  });
+  disposables.push(amberLensMat);
 
-  const head = new THREE.Group();
-  headPivot.add(head);
+  const darkPupilMat = new THREE.MeshStandardMaterial({
+    color: 0x0a0a0c, roughness: 0.05, metalness: 0.95,
+  });
+  disposables.push(darkPupilMat);
 
-  // Head housing
-  const headGeo = new THREE.BoxGeometry(0.85, 0.52, 0.55);
-  const headMat = mat(BODY_COLOR, { roughness: 0.45, metalness: 0.7 });
-  const headMesh = mesh(headGeo, headMat);
-  headMesh.castShadow = true;
-  head.add(headMesh);
+  // ── Root group ─────────────────────────────────────────────────────────────
+  const root = new THREE.Group();
 
-  // Head top ridge
-  const topRidgeGeo = new THREE.BoxGeometry(0.6, 0.08, 0.4);
-  const topRidge = mesh(topRidgeGeo, mat(MID_METAL));
-  topRidge.position.y = 0.3;
-  head.add(topRidge);
+  // ── 1. Torso chassis ───────────────────────────────────────────────────────
+  const torsoGeo = new THREE.BoxGeometry(1.3, 1.1, 1.1);
+  const torso = mesh(torsoGeo, yellowBodyMat);
+  torso.position.y = 0.55;
+  root.add(torso);
 
-  // Small antenna
-  const antGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.22, 6);
-  const ant = mesh(antGeo, mat(LIGHT_METAL));
-  ant.position.set(0.18, 0.42, 0);
-  head.add(ant);
-  const antBallGeo = new THREE.SphereGeometry(0.04, 8, 8);
-  const antBall = mesh(antBallGeo, mat(EYE_GLOW, { emissive: new THREE.Color(EYE_GLOW), emissiveIntensity: 1.0 }));
-  antBall.position.set(0.18, 0.55, 0);
-  head.add(antBall);
+  // Front panel gauge detail
+  const panelGeo = new THREE.PlaneGeometry(0.65, 0.3);
+  const panelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+  disposables.push(panelGeo, panelMat);
+  const panel = new THREE.Mesh(panelGeo, panelMat);
+  panel.position.set(0, 0.62, 0.56);
+  root.add(panel);
 
-  // ── Binocular eye housings ────────────────────────────────────────────────
-  const eyeHousingGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.22, 14);
-  const eyeHousingMat = mat(DARK_METAL, { roughness: 0.3, metalness: 0.9 });
+  // ── 2. Hydraulic neck ──────────────────────────────────────────────────────
+  const neckGroup = new THREE.Group();
+  neckGroup.position.set(0, 1.1, -0.1);
+  root.add(neckGroup);
 
-  // Left eye housing
-  const leftEyeHousing = mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.22, 14), eyeHousingMat.clone());
-  leftEyeHousing.rotation.x = Math.PI / 2;
-  leftEyeHousing.position.set(-0.26, 0.04, 0.28);
-  head.add(leftEyeHousing);
+  const neckBaseGeo = new THREE.BoxGeometry(0.32, 0.18, 0.32);
+  neckGroup.add(mesh(neckBaseGeo, metalMat));
 
-  // Right eye housing
-  const rightEyeHousing = mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.22, 14), eyeHousingMat.clone());
-  rightEyeHousing.rotation.x = Math.PI / 2;
-  rightEyeHousing.position.set(0.26, 0.04, 0.28);
-  head.add(rightEyeHousing);
-  disposables.push(eyeHousingGeo);
+  const pistonGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.65, 16);
+  const leftPiston = mesh(pistonGeo, metalMat);
+  leftPiston.position.set(-0.08, 0.35, 0.04);
+  neckGroup.add(leftPiston);
 
-  // Lens glow ring (rim)
-  const rimGeo = new THREE.TorusGeometry(0.15, 0.025, 8, 20);
-  const rimMat = mat(EYE_GLOW, { emissive: new THREE.Color(EYE_GLOW), emissiveIntensity: 0.5 });
-  const leftRim = mesh(new THREE.TorusGeometry(0.15, 0.025, 8, 20), rimMat.clone());
-  leftRim.position.set(-0.26, 0.04, 0.4);
-  head.add(leftRim);
-  const rightRim = mesh(new THREE.TorusGeometry(0.15, 0.025, 8, 20), rimMat.clone());
-  rightRim.position.set(0.26, 0.04, 0.4);
-  head.add(rightRim);
-  disposables.push(rimGeo);
+  const rightPiston = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.65, 16), metalMat);
+  rightPiston.position.set(0.08, 0.35, 0.04);
+  neckGroup.add(rightPiston);
 
-  // Eye lenses (glowing cyan)
-  const lensGeo = new THREE.CircleGeometry(0.13, 16);
-  const lensMat = mat(EYE_GLOW, { emissive: new THREE.Color(EYE_GLOW), emissiveIntensity: 0.9, roughness: 0.0, metalness: 0.1 });
-  const leftLens = mesh(new THREE.CircleGeometry(0.13, 16), lensMat.clone());
-  leftLens.position.set(-0.26, 0.04, 0.41);
-  head.add(leftLens);
-  const rightLens = mesh(new THREE.CircleGeometry(0.13, 16), lensMat.clone());
-  rightLens.position.set(0.26, 0.04, 0.41);
-  head.add(rightLens);
-  disposables.push(lensGeo);
+  // ── 3. Binocular head assembly ──────────────────────────────────────────────
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 0.7, 0.08);
+  neckGroup.add(headGroup);
 
-  // Pupils (dark, will track cursor)
-  const pupilGeo = new THREE.CircleGeometry(0.055, 12);
-  const pupilMat = mat(PUPIL_COLOR, { roughness: 0.0, metalness: 0.0 });
-  const leftPupil = mesh(new THREE.CircleGeometry(0.055, 12), pupilMat.clone());
-  leftPupil.position.set(-0.26, 0.04, 0.415);
-  head.add(leftPupil);
-  const rightPupil = mesh(new THREE.CircleGeometry(0.055, 12), pupilMat.clone());
-  rightPupil.position.set(0.26, 0.04, 0.415);
-  head.add(rightPupil);
-  disposables.push(pupilGeo);
+  // Pivot shaft
+  const shaftGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.9, 16);
+  shaftGeo.rotateZ(Math.PI / 2);
+  headGroup.add(mesh(shaftGeo, darkSteelMat));
 
-  // ── Arms ─────────────────────────────────────────────────────────────────
+  // Eye housing / bezel / lens geometries (reused per eye)
+  function buildEye(side: -1 | 1): {
+    eyeBox: THREE.Group; pupil: THREE.Mesh; brow: THREE.Mesh;
+  } {
+    const eyeBox = new THREE.Group();
+    eyeBox.position.set(side * 0.44, 0.12, 0);
+    eyeBox.rotation.z = side * -0.15; // signature droop
+    headGroup.add(eyeBox);
+
+    // Housing
+    const housingGeo = new THREE.BoxGeometry(0.72, 0.58, 0.9);
+    eyeBox.add(mesh(housingGeo, metalMat));
+
+    // Bezel
+    const bezelGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.08, 24);
+    bezelGeo.rotateX(Math.PI / 2);
+    const bezel = mesh(bezelGeo, darkSteelMat);
+    bezel.position.set(0, 0, 0.46);
+    eyeBox.add(bezel);
+
+    // Lens (amber glow)
+    const lensGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.04, 24);
+    lensGeo.rotateX(Math.PI / 2);
+    const lens = mesh(lensGeo, amberLensMat);
+    lens.position.set(0, 0, 0.49);
+    eyeBox.add(lens);
+
+    // Pupil
+    const pupilGeo = new THREE.SphereGeometry(0.09, 16, 16);
+    const pupil = mesh(pupilGeo, darkPupilMat);
+    pupil.position.set(0, 0, 0.50);
+    eyeBox.add(pupil);
+
+    // Brow
+    const browGeo = new THREE.BoxGeometry(0.7, 0.07, 0.35);
+    const brow = mesh(browGeo, darkSteelMat);
+    brow.position.set(0, 0.32, 0.2);
+    eyeBox.add(brow);
+
+    return { eyeBox, pupil, brow };
+  }
+
+  const leftEyeParts  = buildEye(-1);
+  const rightEyeParts = buildEye(1);
+
+  // ── 4. Articulated arms with claws ─────────────────────────────────────────
   function buildArm(side: -1 | 1): {
     armGroup: THREE.Group;
-    forearmGroup: THREE.Group;
-    clawGroup: THREE.Group;
-    upperMesh: THREE.Mesh;
-    lowerMesh: THREE.Mesh;
+    forearm:  THREE.Group;
+    clawA:    THREE.Mesh;
+    clawB:    THREE.Mesh;
   } {
     const armGroup = new THREE.Group();
-    armGroup.position.set(side * 0.68, 0.2, 0);
-    group.add(armGroup);
+    armGroup.position.set(side * 0.7, 0.85, 0);
+    root.add(armGroup);
 
-    // Shoulder socket
-    const socketGeo = new THREE.SphereGeometry(0.1, 10, 10);
-    const socketMat = mat(DARK_METAL);
-    const socket = mesh(socketGeo, socketMat);
-    armGroup.add(socket);
+    // Shoulder sphere
+    const shoulderGeo = new THREE.SphereGeometry(0.12, 16, 16);
+    armGroup.add(mesh(shoulderGeo, darkSteelMat));
 
     // Upper arm
-    const upperGeo = new THREE.BoxGeometry(0.14, 0.42, 0.14);
-    const upperMat = mat(BODY_COLOR, { roughness: 0.5, metalness: 0.7 });
-    const upper = mesh(upperGeo, upperMat);
-    upper.position.y = -0.22;
+    const upperGeo = new THREE.BoxGeometry(0.16, 0.65, 0.16);
+    const upper = mesh(upperGeo, yellowBodyMat);
+    upper.position.y = -0.3;
     armGroup.add(upper);
 
-    // Elbow
-    const elbowGeo = new THREE.SphereGeometry(0.085, 8, 8);
-    const elbow = mesh(elbowGeo, mat(DARK_METAL));
-    elbow.position.y = -0.46;
-    armGroup.add(elbow);
+    // Forearm group (hinges at elbow)
+    const forearm = new THREE.Group();
+    forearm.position.y = -0.6;
+    armGroup.add(forearm);
 
-    // Forearm group (pivots at elbow)
-    const forearmGroup = new THREE.Group();
-    forearmGroup.position.y = -0.46;
-    armGroup.add(forearmGroup);
+    const lowerGeo = new THREE.BoxGeometry(0.16, 0.65, 0.16);
+    const lower = mesh(lowerGeo, metalMat);
+    lower.position.y = -0.3;
+    forearm.add(lower);
 
-    // Forearm
-    const lowerGeo = new THREE.BoxGeometry(0.11, 0.36, 0.11);
-    const lowerMat = mat(MID_METAL, { roughness: 0.4, metalness: 0.85 });
-    const lower = mesh(lowerGeo, lowerMat);
-    lower.position.y = -0.2;
-    forearmGroup.add(lower);
+    // Claw fingers
+    const clawGeo = new THREE.BoxGeometry(0.08, 0.35, 0.1);
+    const clawA = mesh(new THREE.BoxGeometry(0.08, 0.35, 0.1), darkSteelMat);
+    clawA.position.set(-0.08, -0.75, 0.08);
+    forearm.add(clawA);
+    disposables.push(clawGeo);
 
-    // Wrist
-    const wristGeo = new THREE.SphereGeometry(0.072, 8, 8);
-    const wrist = mesh(wristGeo, mat(DARK_METAL));
-    wrist.position.y = -0.4;
-    forearmGroup.add(wrist);
+    const clawB = mesh(new THREE.BoxGeometry(0.08, 0.35, 0.1), darkSteelMat);
+    clawB.position.set(0.08, -0.75, 0.08);
+    forearm.add(clawB);
 
-    // Claw group
-    const clawGroup = new THREE.Group();
-    clawGroup.position.y = -0.44;
-    forearmGroup.add(clawGroup);
-
-    // Three claw fingers
-    [-0.07, 0, 0.07].forEach((offset, i) => {
-      const clawGeo = new THREE.BoxGeometry(0.045, 0.14, 0.045);
-      const clawMat = mat(DARK_METAL, { roughness: 0.2, metalness: 0.95 });
-      const claw = mesh(clawGeo, clawMat);
-      claw.position.set(offset, -0.08, 0);
-      claw.rotation.z = (i - 1) * 0.18 * side;
-      clawGroup.add(claw);
-    });
-
-    return { armGroup, forearmGroup, clawGroup, upperMesh: upper, lowerMesh: lower };
+    return { armGroup, forearm, clawA, clawB };
   }
 
-  const leftArmParts  = buildArm(-1);
-  const rightArmParts = buildArm(1);
+  const leftArm  = buildArm(-1);
+  const rightArm = buildArm(1);
 
   return {
-    group,
-    parts: {
-      body,
-      head,
-      headPivot,
-      leftEyePupil: leftPupil,
-      rightEyePupil: rightPupil,
-      leftArm: leftArmParts.armGroup,
-      rightArm: rightArmParts.armGroup,
-      leftForearm: leftArmParts.forearmGroup,
-      rightForearm: rightArmParts.forearmGroup,
-      leftUpperArm: leftArmParts.upperMesh,
-      rightUpperArm: rightArmParts.upperMesh,
-      leftLowerArm: leftArmParts.lowerMesh,
-      rightLowerArm: rightArmParts.lowerMesh,
-      leftClaw: leftArmParts.clawGroup,
-      rightClaw: rightArmParts.clawGroup,
-      eyeLens: { left: leftLens, right: rightLens },
-      frontPlate,
-      track: { left: leftTrack, right: rightTrack },
-    },
+    root,
+    headGroup,
+    leftEyeBox:   leftEyeParts.eyeBox,
+    rightEyeBox:  rightEyeParts.eyeBox,
+    leftPupil:    leftEyeParts.pupil,
+    rightPupil:   rightEyeParts.pupil,
+    leftBrow:     leftEyeParts.brow,
+    rightBrow:    rightEyeParts.brow,
+    leftArmGroup: leftArm.armGroup,
+    rightArmGroup:rightArm.armGroup,
+    leftForearm:  leftArm.forearm,
+    rightForearm: rightArm.forearm,
+    rightClawA:   rightArm.clawA,
+    rightClawB:   rightArm.clawB,
     disposables,
   };
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-const RobotPet: React.FC<RobotPetProps> = ({ cardRef }) => {
-  const wrapperRef   = useRef<HTMLDivElement>(null);
-  const canvasRef    = useRef<HTMLCanvasElement>(null);
-  const bubbleRef    = useRef<HTMLDivElement>(null);
+// ── Default rim-grip stance (matching reference exactly) ─────────────────────
+function setRimGripStance(w: WalleParts) {
+  w.leftArmGroup.rotation.set(0.45, 0, 0.28);
+  w.leftForearm.rotation.set(-1.15, 0, 0.15);
+  w.rightArmGroup.rotation.set(0.45, 0, -0.28);
+  w.rightForearm.rotation.set(-1.15, 0, -0.15);
+}
 
-  // We store all animation state in a ref-object so RAF callbacks always
-  // see the latest values without causing re-renders.
-  const stateRef = useRef({
-    // cursor position in normalised card space [-1..1]
-    cursorNX: 0,
-    cursorNY: 0,
-    // robot horizontal position in world units along card top edge
-    robotX: 0,
-    targetX: 0,
-    // smooth head tilt
-    headRotY: 0,
-    headRotX: 0,
-    // pupil offset
-    pupilLX: 0,
-    pupilLY: 0,
-    pupilRX: 0,
-    pupilRY: 0,
-    // arm swing
-    leftArmAngle: 0,
-    rightArmAngle: 0,
-    // body bob
-    bodyBob: 0,
-    // time
-    t: 0,
-    // duck (password mode)
-    duckTarget: 0,
-    duckCurrent: 0,
-    // horizontal movement
-    walkDir: 1,
-    walkTimer: 0,
-    isWalking: false,
-    cardWidth: 440,
-    rafId: 0,
-    // speech bubble
-    bubbleTimer: 0,
-    bubbleVisible: false,
-    bubbleText: '',
-  });
+// ─────────────────────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────────────────────
+const RobotPet: React.FC<RobotPetProps> = ({ cardRef }) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const bubbleRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -371,11 +303,9 @@ const RobotPet: React.FC<RobotPetProps> = ({ cardRef }) => {
     const bubble  = bubbleRef.current;
     if (!wrapper || !canvas) return;
 
-    const s = stateRef.current;
-
-    // ── Three.js setup ───────────────────────────────────────────────────────
-    const W = wrapper.offsetWidth  || 450;
-    const H = wrapper.offsetHeight || 140;
+    // ── Renderer / Scene / Camera ─────────────────────────────────────────────
+    const W = wrapper.offsetWidth  || 480;
+    const H = wrapper.offsetHeight || 125;
 
     const renderer = new THREE.WebGLRenderer({
       canvas,
@@ -386,104 +316,149 @@ const RobotPet: React.FC<RobotPetProps> = ({ cardRef }) => {
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(W, H);
-    renderer.shadowMap.enabled = false; // keep lightweight
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.35;
 
-    const scene = new THREE.Scene();
+    const scene  = new THREE.Scene();
 
-    // Orthographic-style perspective for the small robot
-    const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
-    camera.position.set(0, 1.0, 7.5);
-    camera.lookAt(0, 0.3, 0);
+    // Camera matching reference: FOV 40, position (0, 0.1, 5.8)
+    const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
+    camera.position.set(0, 0.1, 5.8);
 
-    // ── Lights ───────────────────────────────────────────────────────────────
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    // ── Lights (matching reference: ambient 1.4, cyan rim 2.5, warm key 2.3) ─
+    const ambient = new THREE.AmbientLight(0xf1f5f9, 1.4);
     scene.add(ambient);
 
-    const key = new THREE.DirectionalLight(0xffffff, 1.4);
-    key.position.set(3, 6, 5);
-    scene.add(key);
+    const cyanRim = new THREE.DirectionalLight(0x00f0ff, 2.5);
+    cyanRim.position.set(-3, 3, 3);
+    scene.add(cyanRim);
 
-    const fill = new THREE.DirectionalLight(0x38bdf8, 0.6);
-    fill.position.set(-3, 2, 4);
-    scene.add(fill);
+    const warmKey = new THREE.DirectionalLight(0xffb74d, 2.3);
+    warmKey.position.set(3, 3, 3);
+    scene.add(warmKey);
 
-    const rim = new THREE.DirectionalLight(0xd4820a, 0.4);
-    rim.position.set(0, -2, -4);
-    scene.add(rim);
+    // ── Build WALL-E ──────────────────────────────────────────────────────────
+    const w = buildWalle();
+    w.root.scale.setScalar(0.34);             // same scale as reference
 
-    // ── Build robot ──────────────────────────────────────────────────────────
-    const { group: robotGroup, parts, disposables } = buildRobot();
-    // Scale down — the scene is small
-    robotGroup.scale.setScalar(0.52);
-    scene.add(robotGroup);
+    // posY anchors claws exactly on the top glass rim (matching reference -0.32)
+    const POS_Y = -0.32;
+    w.root.position.set(-1.1, POS_Y, 0);     // start position matches reference
+    scene.add(w.root);
 
-    // Store initial pupil local positions for offset calculations
-    const leftPupilBase  = parts.leftEyePupil.position.clone();
-    const rightPupilBase = parts.rightEyePupil.position.clone();
+    setRimGripStance(w);
 
-    // ── Cursor tracking (document-level, canvas has pointer-events:none) ─────
+    // ── Physics state ─────────────────────────────────────────────────────────
+    // All state kept in plain object — never triggers re-renders
+    let posX         = -1.1;
+    let targetPosX   = -1.1;
+    let walkCycle    = 0;
+    let isReaching   = false;
+    let reachProgress= 0;
+    let isHiding     = false;
+
+    // Mouse in normalised canvas space [-1..1]
+    const mouse = { x: 0, y: 0 };
+
+    // Head look-at vectors (from reference)
+    const targetLookAt  = new THREE.Vector3(0, 0, 5);
+    const currentLookAt = new THREE.Vector3(0, 0, 5);
+
+    let rafId = 0;
+
+    // ── Cursor tracking — relative to the canvas rect ─────────────────────────
+    // (Exactly as in the reference: canvas.getBoundingClientRect)
     const onMouseMove = (e: MouseEvent) => {
-      const card = cardRef.current;
-      if (!card) return;
-      const rect = card.getBoundingClientRect();
-      // Map cursor to [-1..1] relative to card
-      s.cursorNX = ((e.clientX - rect.left)  / rect.width  - 0.5) * 2;
-      s.cursorNY = ((e.clientY - rect.top)   / rect.height - 0.5) * 2;
+      const rect = canvas.getBoundingClientRect();
+      // NDC [-1..1] relative to canvas
+      mouse.x = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+      mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+
+      // Update 3D look-at target (same formula as reference)
+      targetLookAt.set(mouse.x * 4.2, mouse.y * 3.5, 4.0);
+
+      if (isHiding) return;
+
+      // Top-rim lateral position: cursor x maps to [-1.85, 1.85] (reference exact)
+      targetPosX = Math.max(-1.85, Math.min(1.85, mouse.x * 2.3));
+
+      // Proximity check: is cursor close to robot? (reference: distance < 1.4, mouse.y > -0.4)
+      const dist = Math.sqrt(
+        Math.pow(posX - mouse.x * 2.5, 2) +
+        Math.pow(POS_Y - mouse.y * 1.5, 2)
+      );
+      isReaching = dist < 1.4 && mouse.y > -0.4;
     };
     document.addEventListener('mousemove', onMouseMove, { passive: true });
 
-    // ── Password focus detection ─────────────────────────────────────────────
+    // ── Password focus detection ───────────────────────────────────────────────
     const onFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target as HTMLInputElement).type === 'password') {
-        s.duckTarget = 1;
-        showBubble(PASSWORD_MESSAGE, 3500);
+      if ((e.target as HTMLInputElement)?.type === 'password') {
+        isHiding = true;
+        showBubble(PASS_MSG, 2500);
       }
     };
     const onFocusOut = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target as HTMLInputElement).type === 'password') {
-        s.duckTarget = 0;
+      if ((e.target as HTMLInputElement)?.type === 'password') {
+        isHiding = false;
+        w.root.position.y = POS_Y;
       }
     };
     document.addEventListener('focusin',  onFocusIn);
     document.addEventListener('focusout', onFocusOut);
 
-    // ── Speech bubble helper ─────────────────────────────────────────────────
-    let bubbleTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    // ── Speech bubble (positioned from projected 3D head, like reference) ──────
+    let bubbleTimer: ReturnType<typeof setTimeout> | null = null;
+    let bubbleVisible = false;
+
+    function updateBubblePos() {
+      if (!bubble || !w.headGroup) return;
+      const pos = new THREE.Vector3();
+      w.headGroup.getWorldPosition(pos);
+      pos.y += 0.35;
+      pos.project(camera);
+
+      const rect  = canvas.getBoundingClientRect();
+      // Convert to position relative to the WRAPPER (since bubble is inside it)
+      const wRect = wrapper.getBoundingClientRect();
+      const screenX = (pos.x * 0.5 + 0.5) * rect.width  + rect.left;
+      const screenY = (-pos.y * 0.5 + 0.5) * rect.height + rect.top;
+      // Relative to wrapper
+      bubble.style.left = `${screenX - wRect.left}px`;
+      bubble.style.top  = `${screenY - wRect.top}px`;
+    }
+
     function showBubble(text: string, durationMs: number) {
       if (!bubble) return;
-      if (bubbleTimeoutId) clearTimeout(bubbleTimeoutId);
+      if (bubbleTimer) clearTimeout(bubbleTimer);
       bubble.textContent = text;
       bubble.classList.add('visible');
-      s.bubbleVisible = true;
-      bubbleTimeoutId = setTimeout(() => {
+      bubbleVisible = true;
+      updateBubblePos();
+      bubbleTimer = setTimeout(() => {
         bubble.classList.remove('visible');
-        s.bubbleVisible = false;
+        bubbleVisible = false;
       }, durationMs);
     }
 
-    // Show greeting after robot loads
-    setTimeout(() => showBubble(IDLE_MESSAGES[0], 2500), 2000);
+    // Greeting after load
+    setTimeout(() => showBubble('WALL-E online! 🤖', 2200), 1600);
 
-    // Periodic idle speech
-    const idleSpeechInterval = setInterval(() => {
-      if (!s.bubbleVisible && s.duckTarget === 0) {
-        const msg = IDLE_MESSAGES[Math.floor(Math.random() * IDLE_MESSAGES.length)];
-        showBubble(msg, 2000);
+    // Periodic idle messages
+    const idleInterval = setInterval(() => {
+      if (!bubbleVisible && !isHiding) {
+        showBubble(IDLE_MSGS[Math.floor(Math.random() * IDLE_MSGS.length)], 2000);
       }
-    }, 8000 + Math.random() * 6000);
+    }, 10000 + Math.random() * 8000);
 
-    // ── ResizeObserver — keep canvas size synced to card ────────────────────
+    // ── ResizeObserver ────────────────────────────────────────────────────────
     let ro: ResizeObserver | null = null;
     const onResize = () => {
-      if (!wrapper) return;
-      const nW = wrapper.offsetWidth  || 450;
-      const nH = wrapper.offsetHeight || 140;
+      const nW = wrapper.offsetWidth  || 480;
+      const nH = wrapper.offsetHeight || 125;
       renderer.setSize(nW, nH);
       camera.aspect = nW / nH;
       camera.updateProjectionMatrix();
-      s.cardWidth = cardRef.current?.offsetWidth ?? 440;
     };
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(onResize);
@@ -491,128 +466,99 @@ const RobotPet: React.FC<RobotPetProps> = ({ cardRef }) => {
     } else {
       window.addEventListener('resize', onResize);
     }
-    s.cardWidth = cardRef.current?.offsetWidth ?? 440;
 
-    // ── Animation loop ───────────────────────────────────────────────────────
-    // Robot world units: card half-width maps to ~3.2 world units (empirical)
-    const WORLD_HALF = 3.0;
-    const WALK_SPEED = 0.018;
-    const SMOOTH     = 0.04;
+    // ── Animation loop — matching reference logic exactly ─────────────────────
+    function animate() {
+      rafId = requestAnimationFrame(animate);
 
-    // Randomise walk direction changes
-    let walkChangeTimer = 3 + Math.random() * 4;
+      // ── Smooth horizontal crawl (reference: dx * 0.06) ────────────────────
+      const dx = targetPosX - posX;
+      posX += dx * 0.06;
+      w.root.position.x = posX;
 
-    const animate = () => {
-      s.rafId = requestAnimationFrame(animate);
-      s.t += 0.016;
+      const isMoving = Math.abs(dx) > 0.02;
 
-      // ── Walk direction randomisation ──────────────────────────────────────
-      walkChangeTimer -= 0.016;
-      if (walkChangeTimer <= 0) {
-        walkChangeTimer = 2.5 + Math.random() * 5;
-        // Randomly: keep walking, stop, or flip direction
-        const r = Math.random();
-        if (r < 0.25) {
-          s.isWalking = false;
-        } else if (r < 0.55) {
-          s.isWalking = true;
-          s.walkDir *= -1;
-        } else {
-          s.isWalking = true;
-        }
+      // ── Clumsy walking locomotion ─────────────────────────────────────────
+      if (isMoving && !isHiding) {
+        walkCycle += 0.22;                            // reference: 0.22
+        const armWobble = Math.sin(walkCycle) * 0.35; // reference: 0.35
+
+        w.leftArmGroup.rotation.x  = 0.45 + armWobble;
+        w.rightArmGroup.rotation.x = 0.45 - armWobble;
+
+        // Body waddle + vertical hop (reference exact)
+        w.root.rotation.z     = Math.sin(walkCycle) * 0.08;
+        w.root.position.y     = POS_Y + Math.abs(Math.sin(walkCycle)) * 0.06;
+      } else if (!isMoving && !isReaching && !isHiding) {
+        // Return to neutral grip stance
+        w.root.rotation.z *= 0.85;
+        w.root.position.y  = POS_Y;
+        setRimGripStance(w);
       }
 
-      // ── Cursor-based target X (maps card cursor to world) ─────────────────
-      const cursorTargetX = s.cursorNX * WORLD_HALF * 0.7;
-      // Blend cursor target with walk-based target
-      if (s.isWalking) {
-        s.targetX += s.walkDir * WALK_SPEED;
+      // ── Smooth 3D head + eye cursor tracking ─────────────────────────────
+      currentLookAt.lerp(targetLookAt, 0.09);    // reference: 0.09
+
+      if (!isHiding) {
+        w.headGroup.lookAt(currentLookAt);
+
+        // Pupils clamped ±0.06 (reference exact)
+        const pupilX = THREE.MathUtils.clamp(mouse.x * 0.08, -0.06, 0.06);
+        const pupilY = THREE.MathUtils.clamp(mouse.y * 0.08, -0.06, 0.06);
+        w.leftPupil.position.set(pupilX, pupilY, 0.50);
+        w.rightPupil.position.set(pupilX, pupilY, 0.50);
+
+        // Eyebrow curiosity lift
+        const browLift = Math.max(0, mouse.y * 0.04);
+        w.leftBrow.position.y  = 0.32 + browLift;
+        w.rightBrow.position.y = 0.32 + browLift;
       }
-      // Pull slightly toward cursor even while walking
-      s.targetX += (cursorTargetX - s.targetX) * 0.005;
 
-      // Clamp to card edges
-      s.targetX = Math.max(-WORLD_HALF + 0.3, Math.min(WORLD_HALF - 0.3, s.targetX));
+      // ── Cursor reach gesture ───────────────────────────────────────────────
+      reachProgress = isReaching
+        ? Math.min(1, reachProgress + 0.10)
+        : Math.max(0, reachProgress - 0.10);
 
-      // Auto-bounce at edges
-      if (s.targetX >= WORLD_HALF - 0.35) { s.walkDir = -1; }
-      if (s.targetX <= -WORLD_HALF + 0.35) { s.walkDir = 1; }
+      if (reachProgress > 0.01) {
+        // Right arm reaches out (reference exact lerp values)
+        w.rightArmGroup.rotation.x = THREE.MathUtils.lerp(0.45, -1.2, reachProgress);
+        w.rightArmGroup.rotation.y = THREE.MathUtils.lerp(0, (mouse.x - posX * 0.3) * 0.8, reachProgress);
+        w.rightForearm.rotation.x  = THREE.MathUtils.lerp(-1.15, -0.15, reachProgress);
 
-      // Smooth robot position
-      s.robotX += (s.targetX - s.robotX) * 0.06;
-      robotGroup.position.x = s.robotX;
+        // Open claws (reference: ±0.45)
+        w.rightClawA.rotation.z =  reachProgress * 0.45;
+        w.rightClawB.rotation.z = -reachProgress * 0.45;
+      }
 
-      // ── Duck (password privacy) ───────────────────────────────────────────
-      s.duckCurrent += (s.duckTarget - s.duckCurrent) * 0.07;
-      robotGroup.position.y = -s.duckCurrent * 1.8;
+      // ── Password privacy duck ──────────────────────────────────────────────
+      if (isHiding) {
+        // Ducks lower behind card rim (reference: posY - 0.45 target)
+        w.root.position.y += ((POS_Y - 0.45) - w.root.position.y) * 0.15;
+        w.headGroup.rotation.x += (0.6 - w.headGroup.rotation.x) * 0.15;
+        w.headGroup.rotation.y += (-0.8 - w.headGroup.rotation.y) * 0.15;
+        w.leftBrow.position.y   = 0.25;
+        w.rightBrow.position.y  = 0.25;
+      }
 
-      // ── Body bob & wobble ─────────────────────────────────────────────────
-      const walkSpeed = Math.abs(s.targetX - s.robotX);
-      const bobFreq   = s.isWalking ? 8 : 2.5;
-      const bobAmp    = s.isWalking ? 0.045 : 0.015;
-      parts.body.position.y = Math.sin(s.t * bobFreq) * bobAmp;
-      parts.body.rotation.z = Math.sin(s.t * bobFreq * 0.5) * (s.isWalking ? 0.03 : 0.01);
+      // Update speech bubble position to follow the 3D head
+      updateBubblePos();
 
-      // Face direction of movement
-      const targetBodyRotY = s.walkDir < 0 ? 0.25 : -0.25;
-      robotGroup.rotation.y += (targetBodyRotY - robotGroup.rotation.y) * 0.04;
-
-      // ── Head tracking cursor ──────────────────────────────────────────────
-      const headTargetY = s.cursorNX * 0.35;
-      const headTargetX = s.cursorNY * 0.2;
-      s.headRotY += (headTargetY - s.headRotY) * 0.06;
-      s.headRotX += (headTargetX - s.headRotX) * 0.06;
-      parts.headPivot.rotation.y = s.headRotY;
-      parts.headPivot.rotation.x = s.headRotX + Math.sin(s.t * 1.8) * 0.012;
-
-      // ── Pupil tracking ────────────────────────────────────────────────────
-      const maxPupilOffset = 0.04;
-      const targetPupilX = s.cursorNX * maxPupilOffset;
-      const targetPupilY = -s.cursorNY * maxPupilOffset * 0.6;
-      s.pupilLX += (targetPupilX - s.pupilLX) * 0.1;
-      s.pupilLY += (targetPupilY - s.pupilLY) * 0.1;
-      s.pupilRX += (targetPupilX - s.pupilRX) * 0.1;
-      s.pupilRY += (targetPupilY - s.pupilRY) * 0.1;
-      parts.leftEyePupil.position.x  = leftPupilBase.x  + s.pupilLX;
-      parts.leftEyePupil.position.y  = leftPupilBase.y  + s.pupilLY;
-      parts.rightEyePupil.position.x = rightPupilBase.x + s.pupilRX;
-      parts.rightEyePupil.position.y = rightPupilBase.y + s.pupilRY;
-
-      // ── Arm animation ─────────────────────────────────────────────────────
-      const armSwing = s.isWalking
-        ? Math.sin(s.t * 8) * 0.3
-        : Math.sin(s.t * 1.5) * 0.08;
-      parts.leftArm.rotation.x  =  armSwing + 0.1;
-      parts.rightArm.rotation.x = -armSwing + 0.1;
-      // Forearm slight bend
-      const forearmBend = 0.35 + Math.sin(s.t * 1.8) * 0.1;
-      parts.leftForearm.rotation.x  = forearmBend;
-      parts.rightForearm.rotation.x = forearmBend;
-      // Claw open/close
-      const clawAngle = Math.sin(s.t * 1.2) * 0.15;
-      parts.leftClaw.rotation.x  = clawAngle;
-      parts.rightClaw.rotation.x = -clawAngle;
-
-      // ── Render ────────────────────────────────────────────────────────────
       renderer.render(scene, camera);
-    };
+    }
 
     animate();
 
-    // ── Cleanup on unmount ───────────────────────────────────────────────────
+    // ── Cleanup ───────────────────────────────────────────────────────────────
     return () => {
-      cancelAnimationFrame(s.rafId);
-      clearInterval(idleSpeechInterval);
-      if (bubbleTimeoutId) clearTimeout(bubbleTimeoutId);
+      cancelAnimationFrame(rafId);
+      clearInterval(idleInterval);
+      if (bubbleTimer) clearTimeout(bubbleTimer);
       document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('focusin',   onFocusIn);
-      document.removeEventListener('focusout',  onFocusOut);
+      document.removeEventListener('focusin',  onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
       ro?.disconnect();
       window.removeEventListener('resize', onResize);
-
-      // Dispose Three.js resources
-      disposables.forEach((d) => d.dispose());
-      [ambient, key, fill, rim].forEach((l) => { scene.remove(l); });
+      w.disposables.forEach((d) => d.dispose());
       renderer.dispose();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -624,10 +570,8 @@ const RobotPet: React.FC<RobotPetProps> = ({ cardRef }) => {
       className="robot-pet-wrapper"
       aria-hidden="true"
     >
-      <canvas
-        ref={canvasRef}
-        className="robot-pet-canvas"
-      />
+      <canvas ref={canvasRef} className="robot-pet-canvas" />
+      {/* Speech bubble: positioned via JS (updateBubblePos) to follow 3D head */}
       <div ref={bubbleRef} className="robot-speech-bubble" />
     </div>
   );

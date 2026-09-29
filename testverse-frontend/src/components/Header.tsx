@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
+import ActiveTodayIndicator from './ActiveTodayIndicator';
 import {
   User,
   Settings,
@@ -52,18 +53,18 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   return (
       <>
-        <header className="bg-[#0a0a0a] border-b border-[#1a1a1a] px-4 py-3 flex items-center justify-between">
+        <header className="bg-white border-b border-[#E2E8F0] px-4 py-3 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
           {/* Left - Menu Button (Mobile) */}
           <button
               onClick={onMenuClick}
-              className="lg:hidden text-[#666666] hover:text-white transition-colors"
+              className="lg:hidden text-[#64748B] hover:text-[#0F172A] p-1 rounded-md transition-colors"
           >
             <Menu size={24} />
           </button>
 
           {/* Center - Page Title (optional) */}
           <div className="flex-1 lg:flex-none">
-            <h1 className="text-lg font-semibold text-white hidden lg:block">TestVerse</h1>
+            <h1 className="text-base font-bold text-[#0F172A] hidden lg:block tracking-tight">TestVerse</h1>
           </div>
 
           {/* Right - Actions */}
@@ -71,10 +72,14 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             {/* Theme Toggle */}
             <button
                 onClick={toggleTheme}
-                className="p-2 rounded-lg bg-[#1a1a1a] hover:bg-[#2a2a2a] text-[#666666] hover:text-white transition-colors"
+                className="p-2 rounded-lg bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#64748B] hover:text-[#0F172A] border border-[#E2E8F0] transition-colors"
+                title="Toggle Theme"
             >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+              {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
             </button>
+
+            {/* Active Today Indicator */}
+            <ActiveTodayIndicator />
 
             {/* Notifications */}
             <NotificationBell />
@@ -83,28 +88,28 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             <div className="relative" ref={dropdownRef}>
               <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center space-x-2 px-2 py-1.5 rounded-lg hover:bg-[#1a1a1a] transition-colors"
+                  className="flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#F8FAFC] border border-transparent hover:border-[#E2E8F0] transition-colors"
               >
-                <div className="w-8 h-8 rounded-full bg-[#ff6b00] flex items-center justify-center text-white font-bold text-sm">
+                <div className="w-8 h-8 rounded-full bg-[#0062E0] flex items-center justify-center text-white font-bold text-xs shadow-sm">
                   {userInitial}
                 </div>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-white">{user?.name || 'User'}</p>
-                  <p className="text-xs text-[#666666]">{user?.role || 'Role'}</p>
+                  <p className="text-sm font-semibold text-[#0F172A]">{user?.name || 'User'}</p>
+                  <p className="text-xs text-[#64748B] capitalize">{user?.role?.toLowerCase() || 'Role'}</p>
                 </div>
                 <ChevronDown
-                    size={16}
-                    className={`text-[#666666] transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                    size={15}
+                    className={`text-[#64748B] transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
                 />
               </button>
 
               {/* Dropdown Menu */}
               {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-[#111111] border border-[#1a1a1a] rounded-lg shadow-xl py-1 z-50">
-                    <div className="px-4 py-3 border-b border-[#1a1a1a]">
-                      <p className="text-sm font-medium text-white">{user?.name || 'User'}</p>
-                      <p className="text-xs text-[#666666]">{user?.email || 'user@example.com'}</p>
-                      <p className="text-xs text-[#666666] mt-1">Role: {user?.role || 'N/A'}</p>
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-[#E2E8F0] rounded-xl shadow-xl py-1 z-50">
+                    <div className="px-4 py-3 border-b border-[#F1F5F9]">
+                      <p className="text-sm font-semibold text-[#0F172A]">{user?.name || 'User'}</p>
+                      <p className="text-xs text-[#64748B] truncate">{user?.email || 'user@example.com'}</p>
+                      <p className="text-xs font-medium text-[#0062E0] mt-1 capitalize">Role: {user?.role?.toLowerCase() || 'N/A'}</p>
                     </div>
 
                     <button
@@ -112,9 +117,9 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                           setIsDropdownOpen(false);
                           navigate('/profile');
                         }}
-                        className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm text-[#666666] hover:bg-[#1a1a1a] hover:text-white transition-colors"
+                        className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A] transition-colors"
                     >
-                      <User size={16} />
+                      <User size={16} className="text-[#64748B]" />
                       <span>Profile</span>
                     </button>
 
@@ -123,16 +128,16 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                           setIsDropdownOpen(false);
                           navigate('/settings');
                         }}
-                        className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm text-[#666666] hover:bg-[#1a1a1a] hover:text-white transition-colors"
+                        className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A] transition-colors"
                     >
-                      <Settings size={16} />
+                      <Settings size={16} className="text-[#64748B]" />
                       <span>Settings</span>
                     </button>
 
-                    <div className="border-t border-[#1a1a1a] mt-1 pt-1">
+                    <div className="border-t border-[#F1F5F9] mt-1 pt-1">
                       <button
                           onClick={handleLogoutClick}
-                          className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm text-red-500 hover:bg-[#1a1a1a] hover:text-red-400 transition-colors"
+                          className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                       >
                         <LogOut size={16} />
                         <span>Logout</span>
@@ -146,28 +151,28 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
         {/* Logout Confirmation Modal */}
         {showLogoutConfirm && (
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-              <div className="bg-[#111111] border border-[#1a1a1a] rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
                 <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
-                    <LogOut size={32} className="text-red-500" />
+                  <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4 border border-red-100">
+                    <LogOut size={28} className="text-red-600" />
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-2">Confirm Logout</h3>
-                  <p className="text-[#666666] text-sm mb-6">
-                    Are you sure you want to logout? You will need to login again to access your account.
+                  <h3 className="text-xl font-bold text-[#0F172A] mb-2">Confirm Logout</h3>
+                  <p className="text-[#64748B] text-sm mb-6">
+                    Are you sure you want to logout?
                   </p>
                   <div className="flex gap-3">
                     <button
                         onClick={handleCancelLogout}
-                        className="flex-1 px-4 py-2 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white rounded-lg transition-colors border border-[#2a2a2a]"
+                        className="flex-1 px-4 py-2 bg-white hover:bg-[#F1F5F9] text-[#475569] rounded-lg transition-colors border border-[#CBD5E1] font-medium text-sm"
                     >
                       Cancel
                     </button>
                     <button
                         onClick={handleConfirmLogout}
-                        className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                        className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium text-sm shadow-sm"
                     >
-                      Yes, Logout
+                      Logout
                     </button>
                   </div>
                 </div>

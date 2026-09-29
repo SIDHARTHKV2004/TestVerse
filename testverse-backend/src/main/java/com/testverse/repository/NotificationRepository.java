@@ -10,15 +10,21 @@ import java.util.List;
 public interface NotificationRepository
         extends JpaRepository<NotificationEntity, String> {
 
-    List<NotificationEntity> findByUserIdOrderByCreatedAtDesc(String userId);
+    List<NotificationEntity> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     List<NotificationEntity> findByUserIdAndIsRead(
-            String userId,
+            Long userId,
             boolean isRead
     );
 
     List<NotificationEntity> findByUserIdAndType(
-            String userId,
+            Long userId,
             String type
+    );
+
+    List<NotificationEntity> findByUserIdAndTypeAndIsTaskViewed(
+            Long userId,
+            String type,
+            boolean isTaskViewed
     );
 }

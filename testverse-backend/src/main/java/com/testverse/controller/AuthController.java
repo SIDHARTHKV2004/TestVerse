@@ -7,6 +7,7 @@ import com.testverse.model.UserStatus;
 import com.testverse.repository.NotificationRepository;
 import com.testverse.repository.UserRepository;
 import com.testverse.security.JwtService;
+import com.testverse.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,7 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final NotificationRepository notificationRepository;
+    private final AttendanceService attendanceService;
 
     // ============================================================
     // REGISTER
@@ -34,12 +36,13 @@ public class AuthController {
     // Admin must approve the account before login is allowed.
     // ============================================================
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody Map<String, String> request) {
+    public ResponseEntity<?> register(@RequestBody Map<String, Object> request) {
         try {
-            String email = request.get("email");
-            String password = request.get("password");
-            String name = request.get("name");
-            String role = request.get("role");
+            String email = request.get("email") != null ? request.get("email").toString().trim() : null;
+            String password = request.get("password") != null ? request.get("password").toString() : null;
+            String name = request.get("name") != null ? request.get("name").toString().trim() : null;
+            String role = request.get("role") != null ? request.get("role").toString().trim() : null;
+            String mentorIdStr = request.get("mentorId") != null ? request.get("mentorId").toString().trim() : null;
 
             // ----------------------------------------------------
             // Validate required fields
@@ -80,6 +83,54 @@ public class AuthController {
             }
 
             // ----------------------------------------------------
+            // Validate Mentor Requirements
+            // Tester and Developer roles strictly require an active,
+            // eligible mentor from their respective department.
+            // ----------------------------------------------------
+            UserEntity mentor = null;
+            if (userRole == UserRole.TESTER || userRole == UserRole.DEVELOPER) {
+                if (mentorIdStr == null || mentorIdStr.isEmpty()) {
+                    return ResponseEntity.badRequest()
+                            .body("A mentor is strictly required for " + userRole + " registration");
+                }
+
+                Long mentorId;
+                try {
+                    mentorId = Long.parseLong(mentorIdStr);
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.badRequest()
+                            .body("Invalid mentor ID format");
+                }
+
+                mentor = userRepository.findById(mentorId).orElse(null);
+                if (mentor == null) {
+                    return ResponseEntity.badRequest()
+                            .body("Selected mentor not found");
+                }
+
+                if (mentor.getRole() != UserRole.MENTOR) {
+                    return ResponseEntity.badRequest()
+                            .body("Selected user is not a mentor");
+                }
+
+                if (mentor.getStatus() != UserStatus.ACTIVE) {
+                    return ResponseEntity.badRequest()
+                            .body("Selected mentor is not active");
+                }
+
+                // Check role-mentor compatibility
+                String expectedDepartment = (userRole == UserRole.TESTER) ? "TESTING" : "DEVELOPMENT";
+                String mentorDepartment = mentor.getDepartment() != null
+                        ? mentor.getDepartment().trim().toUpperCase()
+                        : "";
+
+                if (!expectedDepartment.equals(mentorDepartment)) {
+                    return ResponseEntity.badRequest()
+                            .body("Role-mentor mismatch: " + userRole + " must be assigned a " + expectedDepartment + " mentor");
+                }
+            }
+
+            // ----------------------------------------------------
             // Create new user
             // ----------------------------------------------------
             UserEntity user = new UserEntity();
@@ -98,6 +149,11 @@ public class AuthController {
             user.setStatus(UserStatus.PENDING);
 
             user.setCreatedAt(LocalDateTime.now());
+
+            if (mentor != null) {
+                user.setMentor(mentor);
+                user.setDepartment(userRole == UserRole.TESTER ? "TESTING" : "DEVELOPMENT");
+            }
 
             // ----------------------------------------------------
             // Save user
@@ -165,6 +221,10 @@ public class AuthController {
             response.put("role", savedUser.getRole().toString());
             response.put("status", savedUser.getStatus().toString());
             response.put("requiresApproval", true);
+            if (savedUser.getMentor() != null) {
+                response.put("mentorId", savedUser.getMentor().getId());
+                response.put("mentorName", savedUser.getMentor().getName());
+            }
 
             return ResponseEntity
                     .status(HttpStatus.CREATED)
@@ -191,12 +251,15 @@ public class AuthController {
         try {
 
             String email = request.get("email");
+            if (email == null || email.trim().isEmpty()) {
+                email = request.get("username");
+            }
             String password = request.get("password");
 
             // ----------------------------------------------------
             // Validate required fields
             // ----------------------------------------------------
-            if (email == null || email.isEmpty()) {
+            if (email == null || email.trim().isEmpty()) {
                 return ResponseEntity
                         .badRequest()
                         .body("Email is required");
@@ -208,11 +271,14 @@ public class AuthController {
                         .body("Password is required");
             }
 
+            final String searchKey = email.trim();
+
             // ----------------------------------------------------
             // Find user
             // ----------------------------------------------------
             UserEntity user = userRepository
-                    .findByEmail(email)
+                    .findByEmail(searchKey)
+                    .or(() -> userRepository.findByUsername(searchKey))
                     .orElse(null);
 
             if (user == null) {
@@ -276,6 +342,16 @@ public class AuthController {
             // ----------------------------------------------------
             String token =
                     jwtService.generateToken(user.getUsername());
+
+            // ----------------------------------------------------
+            // Automatic Daily Attendance Recording
+            // Recorded immediately after successful authentication
+            // ----------------------------------------------------
+            try {
+                attendanceService.recordAttendance(user);
+            } catch (Exception attEx) {
+                System.err.println("Notice: Could not record attendance during login: " + attEx.getMessage());
+            }
 
             // ----------------------------------------------------
             // Return login response
@@ -349,18 +425,33 @@ public class AuthController {
                             );
 
             // ----------------------------------------------------
+            // Determine target role for counting active mentees
+            // ----------------------------------------------------
+            UserRole targetRole = normalizedDepartment.equals("TESTING")
+                    ? UserRole.TESTER
+                    : UserRole.DEVELOPER;
+
+            // ----------------------------------------------------
             // Return only the information frontend needs.
             // Do NOT return the complete UserEntity.
             // ----------------------------------------------------
-            List<Map<String, String>> mentorList =
+            List<Map<String, Object>> mentorList =
                     mentors.stream()
                             .map(mentor -> {
 
-                                Map<String, String> mentorData =
+                                Map<String, Object> mentorData =
                                         new HashMap<>();
 
-                                mentorData.put("id", mentor.getId());
+                                mentorData.put("id", String.valueOf(mentor.getId()));
                                 mentorData.put("name", mentor.getName());
+                                mentorData.put("department", normalizedDepartment);
+
+                                long activeCount = userRepository.countByMentorAndRoleAndStatus(
+                                        mentor,
+                                        targetRole,
+                                        UserStatus.ACTIVE
+                                );
+                                mentorData.put("activeCount", activeCount);
 
                                 return mentorData;
                             })

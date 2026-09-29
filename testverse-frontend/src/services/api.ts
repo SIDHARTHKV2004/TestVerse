@@ -32,7 +32,7 @@ export interface User {
 }
 
 export interface Task {
-  id: number;
+  id: number | string;
   title: string;
   description?: string;
   priority: 'Low' | 'Medium' | 'High' | 'Critical';
@@ -42,11 +42,14 @@ export interface Task {
   assignedStudentName?: string;
   mentorId?: number;
   mentorName?: string;
+  createdById?: number;
+  createdByName?: string;
   projectId?: number;
   projectName?: string;
   moduleName?: string;
   instructions?: string;
   submissionNotes?: string;
+  isNewAssignment?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -65,7 +68,7 @@ export interface Project {
 }
 
 export interface BugReport {
-  id?: number;
+  id?: string | number;
   title: string;
   description: string;
   status: string;
@@ -76,7 +79,10 @@ export interface BugReport {
   actualResult?: string;
   reporterId?: number;
   reporterName?: string;
+  assigneeId?: number;
   assigneeName?: string;
+  reporterMentorId?: number;
+  assigneeMentorId?: number;
   projectName?: string;
   screenshotUrl?: string;
   createdAt?: string;
@@ -100,8 +106,8 @@ const getHeaders = (): HeadersInit => {
 // ==================== Helper: Handle Response ====================
 const handleResponse = async (response: Response): Promise<any> => {
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      console.error('❌ Authentication error - Redirecting to login');
+    if (response.status === 401) {
+      console.error('❌ Authentication error (401) - Redirecting to login');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (!window.location.pathname.includes('/login')) {
@@ -118,6 +124,12 @@ const handleResponse = async (response: Response): Promise<any> => {
     } catch (_) {
       // Ignore
     }
+
+    if (response.status === 403) {
+      console.error('❌ Authorization error (403 Forbidden):', errorMessage);
+      throw new Error(errorMessage || 'Access denied: insufficient permissions.');
+    }
+
     throw new Error(errorMessage);
   }
 
@@ -152,6 +164,8 @@ export const authApi = {
     if (data.token) {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify({
+        userId: data.userId || data.id,
+        id: data.userId || data.id,
         email: data.email,
         name: data.name,
         role: data.role,
@@ -208,7 +222,7 @@ export const authApi = {
     return !!localStorage.getItem('token');
   },
 
-  getMentorsByDepartment: async (department: string): Promise<{ id: string; name: string }[]> => {
+  getMentorsByDepartment: async (department: string): Promise<{ id: string; name: string; department?: string; activeCount?: number }[]> => {
     const response = await fetch(`${API_BASE_URL}/api/auth/mentors?department=${encodeURIComponent(department)}`);
     if (!response.ok) {
       let errorMessage = 'Failed to fetch mentors';
@@ -260,10 +274,14 @@ export const createTask = async (taskData: any): Promise<Task> => {
       const errorText = await response.text();
       console.error('❌ Error response:', errorText);
 
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         throw new Error('Session expired. Please login again.');
+      }
+
+      if (response.status === 403) {
+        throw new Error(errorText || 'You do not have permission to create tasks.');
       }
 
       throw new Error(errorText || `Failed to create task (Status: ${response.status})`);
@@ -302,6 +320,20 @@ export const deleteTask = async (id: number): Promise<void> => {
   } catch (error: any) {
     console.error('❌ Delete task error:', error);
     throw new Error(error.message || 'Failed to delete task');
+  }
+};
+
+export const updateTaskStatus = async (id: string | number, status: string): Promise<Task> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${id}/status`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    return handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Update task status error:', error);
+    throw new Error(error.message || 'Failed to update task status');
   }
 };
 
@@ -373,10 +405,14 @@ export const createBug = async (bugData: any): Promise<BugReport> => {
       const errorText = await response.text();
       console.error('❌ Error response:', errorText);
 
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         throw new Error('Session expired. Please login again.');
+      }
+
+      if (response.status === 403) {
+        throw new Error(errorText || 'You do not have permission to create bugs (Admin or Tester role required).');
       }
 
       throw new Error(errorText || `Failed to create bug (Status: ${response.status})`);
@@ -391,7 +427,7 @@ export const createBug = async (bugData: any): Promise<BugReport> => {
   }
 };
 
-export const updateBug = async (id: number, bugData: any): Promise<BugReport> => {
+export const updateBug = async (id: string | number, bugData: any): Promise<BugReport> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bugs/${id}`, {
       method: 'PUT',
@@ -405,7 +441,7 @@ export const updateBug = async (id: number, bugData: any): Promise<BugReport> =>
   }
 };
 
-export const updateBugStatus = async (id: number, status: string): Promise<BugReport> => {
+export const updateBugStatus = async (id: string | number, status: string): Promise<BugReport> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bugs/${id}/status`, {
       method: 'PATCH',
@@ -419,7 +455,7 @@ export const updateBugStatus = async (id: number, status: string): Promise<BugRe
   }
 };
 
-export const deleteBug = async (id: number): Promise<void> => {
+export const deleteBug = async (id: string | number): Promise<void> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/bugs/${id}`, {
       method: 'DELETE',
@@ -457,12 +493,59 @@ export const fetchNotifications = async (): Promise<any[]> => {
   return handleResponse(response);
 };
 
-export const markNotificationAsRead = async (id: number): Promise<void> => {
+export const markNotificationAsRead = async (id: number | string): Promise<void> => {
   const response = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: getHeaders(),
   });
   await handleResponse(response);
+};
+
+export const markTaskNotificationsAsRead = async (): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/api/notifications/tasks/read`, {
+    method: 'PATCH',
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+export const markAllNotificationsAsRead = async (): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+    method: 'PATCH',
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+// ==================== Messages API ====================
+export interface UnreadMessageSummary {
+  unreadCount: number;
+  directUnreadCount?: number;
+  generalUnreadCount?: number;
+  unreadSenderIds?: Array<number | string>;
+  unreadCountsBySender?: Record<string, number>;
+  lastUnreadTimeBySender?: Record<string, string>;
+  lastMessageTimes?: Record<string, string>;
+  latestMessagePreviews?: Record<string, string>;
+  latestMessageSenderIds?: Record<string, number>;
+  latestGeneralMessagePreview?: string | null;
+  latestGeneralMessageTime?: string | null;
+  hasGeneralUnread?: boolean;
+}
+
+export const fetchUnreadMessageCount = async (): Promise<UnreadMessageSummary> => {
+  const response = await fetch(`${API_BASE_URL}/api/messages/unread-count`, {
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+export const markGeneralMessagesAsSeen = async (): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/api/messages/general/seen`, {
+    method: 'PATCH',
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
 };
 
 // ==================== Community API ====================
@@ -480,6 +563,19 @@ export const createCommunityPost = async (postData: any): Promise<any> => {
     body: JSON.stringify(postData),
   });
   return handleResponse(response);
+};
+
+// ==================== User API ====================
+export const fetchDevelopers = async (): Promise<any[]> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/users/developers`, {
+      headers: getHeaders(),
+    });
+    return handleResponse(response);
+  } catch (error: any) {
+    console.error('❌ Fetch developers error:', error);
+    throw new Error(error.message || 'Failed to fetch developers');
+  }
 };
 
 // ==================== Protected API (Generic) ====================
@@ -518,6 +614,61 @@ export const protectedApi = {
   },
 };
 
+// ==================== Attendance API ====================
+export interface ActiveUser {
+  id: number | string;
+  name: string;
+  username?: string;
+  email?: string;
+  role: string;
+  department?: string;
+  status: 'PRESENT' | 'ABSENT';
+  firstActiveAt?: string | null;
+  lastActiveAt?: string | null;
+}
+
+export interface AttendanceRecord {
+  id: number | string;
+  name: string;
+  username?: string;
+  email?: string;
+  role: string;
+  department?: string;
+  status: 'PRESENT' | 'ABSENT';
+  firstActiveAt?: string | null;
+  lastActiveAt?: string | null;
+  attendanceDate: string;
+}
+
+export const attendanceApi = {
+  checkIn: async (): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/api/attendance/check-in`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  getTodayActive: async (): Promise<ActiveUser[]> => {
+    const response = await fetch(`${API_BASE_URL}/api/attendance/today`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  getAttendanceByDate: async (date?: string): Promise<AttendanceRecord[]> => {
+    const url = date
+      ? `${API_BASE_URL}/api/attendance?date=${encodeURIComponent(date)}`
+      : `${API_BASE_URL}/api/attendance`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(response);
+  },
+};
+
 // ==================== Debug Helper ====================
 export const debugAuth = (): void => {
   console.log('🔍 Debug Auth:');
@@ -529,11 +680,14 @@ export const debugAuth = (): void => {
 // ==================== Default Export ====================
 const api = {
   auth: authApi,
-  tasks: { fetchTasks, createTask, updateTask, deleteTask },
+  attendance: attendanceApi,
+  tasks: { fetchTasks, createTask, updateTask, updateTaskStatus, deleteTask },
   projects: { fetchProjects, createProject, updateProject, deleteProject },
   bugs: { fetchBugs, createBug, updateBug, updateBugStatus, deleteBug },
+  users: { fetchDevelopers },
   teams: { fetchTeams, createTeam },
-  notifications: { fetchNotifications, markNotificationAsRead },
+  notifications: { fetchNotifications, markNotificationAsRead, markTaskNotificationsAsRead, markAllNotificationsAsRead },
+  messages: { fetchUnreadMessageCount },
   community: { fetchCommunityPosts, createCommunityPost },
   protected: protectedApi,
   debug: debugAuth,

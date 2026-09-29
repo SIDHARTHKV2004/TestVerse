@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { AttentionProvider } from './context/AttentionContext';
 import MainLayout from './components/MainLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -10,6 +11,7 @@ import TasksPage from './pages/TasksPage';
 import ProjectsPage from './pages/ProjectsPage';
 import BugTrackerPage from './pages/BugTrackerPage';
 import AutomationPage from './pages/AutomationPage';
+import { DevelopingPage } from './pages/DevelopingPage';
 import CommunityPage from './pages/CommunityPage';
 import ChatPage from './pages/ChatPage';
 import TeamPage from './pages/TeamPage';
@@ -21,13 +23,14 @@ import { NotesPage } from './pages/NotesPage';
 import SearchPage from './pages/SearchPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import PendingApprovalPage from './pages/PendingApprovalPage';
+import AttendancePage from './pages/AttendancePage';
 
 const RouteSync: React.FC<{ onNavigate: (page: string) => void }> = ({ onNavigate }) => {
     const location = useLocation();
 
     useEffect(() => {
-        const path = location.pathname.replace('/', '');
-        const page = path || 'dashboard';
+        const rawPath = location.pathname.replace('/', '');
+        const page = rawPath === 'developing' ? 'developer-hub' : (rawPath || 'dashboard');
         onNavigate(page);
     }, [location, onNavigate]);
 
@@ -64,10 +67,13 @@ const AppContent: React.FC = () => {
                 <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/bugs" element={<BugTrackerPage />} />
                 <Route path="/automation" element={<AutomationPage />} />
+                <Route path="/developer-hub" element={<DevelopingPage />} />
+                <Route path="/developing" element={<DevelopingPage />} />
                 <Route path="/community" element={<CommunityPage />} />
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/team" element={<TeamPage />} />
                 <Route path="/users" element={<UsersPage />} />
+                <Route path="/attendance" element={<AttendancePage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/leaderboard" element={<LeaderboardPage />} />
                 <Route path="/manual-testing" element={<ManualTestingPage />} />
@@ -96,9 +102,11 @@ const App: React.FC = () => {
     return (
         <AuthProvider>
             <ThemeProvider>
-                <Router>
-                    <AppContent />
-                </Router>
+                <AttentionProvider>
+                    <Router>
+                        <AppContent />
+                    </Router>
+                </AttentionProvider>
             </ThemeProvider>
         </AuthProvider>
     );

@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -31,7 +33,9 @@ public class ProjectEntity {
     private String category;
 
     @Column(columnDefinition = "TEXT")
-    private String techStack;
+    @Convert(converter = StringListConverter.class)
+    @Builder.Default
+    private List<String> techStack = new ArrayList<>();
 
     private Integer progress;
 

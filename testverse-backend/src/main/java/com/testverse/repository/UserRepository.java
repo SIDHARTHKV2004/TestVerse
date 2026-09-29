@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<UserEntity, String> {
+public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     Optional<UserEntity> findByEmail(String email);
 
@@ -26,6 +26,13 @@ public interface UserRepository extends JpaRepository<UserEntity, String> {
     List<UserEntity> findByRoleAndDepartmentAndStatus(
             UserRole role,
             String department,
+            UserStatus status
+    );
+
+    // Count active mentees assigned to a mentor with a specific role
+    long countByMentorAndRoleAndStatus(
+            UserEntity mentor,
+            UserRole role,
             UserStatus status
     );
 }

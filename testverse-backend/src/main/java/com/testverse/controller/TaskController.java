@@ -1,8 +1,10 @@
 package com.testverse.controller;
 
+import com.testverse.model.NotificationEntity;
 import com.testverse.model.TaskEntity;
 import com.testverse.model.UserEntity;
 import com.testverse.model.UserRole;
+import com.testverse.repository.NotificationRepository;
 import com.testverse.repository.TaskRepository;
 import com.testverse.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class TaskController {
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
 
     // =========================================================
     // GET ALL TASKS
@@ -155,9 +158,11 @@ public class TaskController {
 
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
+        task.setCreatedById(currentUser.getId());
+        task.setCreatedByName(currentUser.getName());
 
         // If Mentor creates the task,
-        // store that Mentor as the task creator.
+        // store that Mentor as the task creator / mentor.
         if (currentUser.getRole() == UserRole.MENTOR) {
             task.setMentorId(currentUser.getId());
         }
@@ -170,19 +175,86 @@ public class TaskController {
             task.setPriority("Medium");
         }
 
+        if (task.getAssignedStudentId() != null) {
+            task.setIsNewAssignment(true);
+        } else {
+            task.setIsNewAssignment(false);
+        }
+
         TaskEntity savedTask = taskRepository.save(task);
+
+        if (savedTask.getAssignedStudentId() != null) {
+            userRepository.findById(savedTask.getAssignedStudentId()).ifPresent(assignedUser -> {
+                NotificationEntity notification = NotificationEntity.builder()
+                        .title("New Task Assigned")
+                        .message("New task assigned to you: " + savedTask.getTitle())
+                        .user(assignedUser)
+                        .type("TASK")
+                        .senderId(currentUser.getId())
+                        .taskId(savedTask.getId())
+                        .isRead(false)
+                        .isAccepted(false)
+                        .isTaskViewed(false)
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+                notificationRepository.save(notification);
+            });
+        }
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(savedTask);
     }
 
     // =========================================================
-    // UPDATE TASK
+    // UPDATE TASK STATUS
+    //
+    // Only:
+    // 1. Task creator
+    // 2. Assigned user
+    // 3. Appropriate mentor
+    // =========================================================
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<?> updateTaskStatus(
+            @PathVariable String id,
+            @RequestBody Map<String, String> statusUpdate) {
+
+        Authentication auth =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !(auth.getPrincipal() instanceof UserEntity)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Authentication is required");
+        }
+
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
+
+        return taskRepository.findById(id)
+                .map(task -> {
+                    if (!canChangeTaskStatus(task, currentUser)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body("You do not have permission to change the status of this task. Only the task creator, assigned user, or their mentor can change task status.");
+                    }
+
+                    String newStatus = statusUpdate.get("status");
+                    if (newStatus == null || newStatus.trim().isEmpty()) {
+                        return ResponseEntity.badRequest().body("Status is required");
+                    }
+
+                    task.setStatus(newStatus.trim());
+                    task.setIsNewAssignment(false);
+                    task.setUpdatedAt(LocalDateTime.now());
+
+                    return ResponseEntity.ok(taskRepository.save(task));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // =========================================================
+    // UPDATE TASK DETAILS
     //
     // ADMIN + MENTOR + DEVELOPER + TESTER
-    //
-    // Later we will restrict TESTER/DEVELOPER to their
-    // assigned tasks only.
+    // Status changes are strictly restricted to creator, assigned user, and mentor.
     // =========================================================
     @PutMapping("/{id}")
     public ResponseEntity<?> updateTask(
@@ -191,6 +263,11 @@ public class TaskController {
 
         Authentication auth =
                 SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !(auth.getPrincipal() instanceof UserEntity)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Authentication is required");
+        }
 
         UserEntity currentUser = (UserEntity) auth.getPrincipal();
 
@@ -206,9 +283,22 @@ public class TaskController {
         return taskRepository.findById(id)
                 .map(task -> {
 
+                    boolean isStatusChanging = taskDetails.getStatus() != null &&
+                            !taskDetails.getStatus().equals(task.getStatus());
+
+                    if (isStatusChanging && !canChangeTaskStatus(task, currentUser)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body("You do not have permission to change the status of this task. Only the task creator, assigned user, or their mentor can change task status.");
+                    }
+
+                    Long oldAssignedStudentId = task.getAssignedStudentId();
+                    Long newAssignedStudentId = taskDetails.getAssignedStudentId();
+
                     task.setTitle(taskDetails.getTitle());
                     task.setDescription(taskDetails.getDescription());
-                    task.setStatus(taskDetails.getStatus());
+                    if (taskDetails.getStatus() != null) {
+                        task.setStatus(taskDetails.getStatus());
+                    }
                     task.setPriority(taskDetails.getPriority());
                     task.setDueDate(taskDetails.getDueDate());
                     task.setAssignedStudentId(
@@ -222,11 +312,107 @@ public class TaskController {
 
                     task.setUpdatedAt(LocalDateTime.now());
 
-                    return ResponseEntity.ok(
-                            taskRepository.save(task)
-                    );
+                    if (isStatusChanging) {
+                        task.setIsNewAssignment(false);
+                    }
+
+                    if (newAssignedStudentId != null && !newAssignedStudentId.equals(oldAssignedStudentId)) {
+                        task.setIsNewAssignment(true);
+                    } else if (newAssignedStudentId == null) {
+                        task.setIsNewAssignment(false);
+                    }
+
+                    TaskEntity saved = taskRepository.save(task);
+
+                    // Notify when newly assigned or reassigned to a user
+                    if (newAssignedStudentId != null && !newAssignedStudentId.equals(oldAssignedStudentId)) {
+                        userRepository.findById(newAssignedStudentId).ifPresent(assignedUser -> {
+                            NotificationEntity notification = NotificationEntity.builder()
+                                    .title("New Task Assigned")
+                                    .message("Task assigned to you: " + saved.getTitle())
+                                    .user(assignedUser)
+                                    .type("TASK")
+                                    .senderId(currentUser.getId())
+                                    .taskId(saved.getId())
+                                    .isRead(false)
+                                    .isAccepted(false)
+                                    .isTaskViewed(false)
+                                    .createdAt(LocalDateTime.now())
+                                    .updatedAt(LocalDateTime.now())
+                                    .build();
+                            notificationRepository.save(notification);
+                        });
+                    } else if (newAssignedStudentId != null && !newAssignedStudentId.equals(currentUser.getId())) {
+                        // Task updated by mentor/admin for the assigned user
+                        userRepository.findById(newAssignedStudentId).ifPresent(assignedUser -> {
+                            NotificationEntity notification = NotificationEntity.builder()
+                                    .title("Task Updated")
+                                    .message("Task updated: " + saved.getTitle())
+                                    .user(assignedUser)
+                                    .type("TASK")
+                                    .senderId(currentUser.getId())
+                                    .taskId(saved.getId())
+                                    .isRead(false)
+                                    .isAccepted(false)
+                                    .isTaskViewed(false)
+                                    .createdAt(LocalDateTime.now())
+                                    .updatedAt(LocalDateTime.now())
+                                    .build();
+                            notificationRepository.save(notification);
+                        });
+                    }
+
+                    return ResponseEntity.ok(saved);
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    // =========================================================
+    // HELPER: CAN CHANGE TASK STATUS
+    // =========================================================
+    private boolean canChangeTaskStatus(TaskEntity task, UserEntity currentUser) {
+        if (task == null || currentUser == null) {
+            return false;
+        }
+
+        Long currentUserId = currentUser.getId();
+        if (currentUserId == null) {
+            return false;
+        }
+
+        // 1. The person who created the task
+        if (task.getCreatedById() != null && currentUserId.equals(task.getCreatedById())) {
+            return true;
+        }
+
+        // 2. The person assigned to the task
+        if (task.getAssignedStudentId() != null && currentUserId.equals(task.getAssignedStudentId())) {
+            return true;
+        }
+
+        // 3. The appropriate mentor
+        // Direct task mentor
+        if (task.getMentorId() != null && currentUserId.equals(task.getMentorId())) {
+            return true;
+        }
+
+        // Mentor of the assigned user/student
+        if (task.getAssignedStudentId() != null) {
+            UserEntity assignedUser = userRepository.findById(task.getAssignedStudentId()).orElse(null);
+            if (assignedUser != null && assignedUser.getMentor() != null && currentUserId.equals(assignedUser.getMentor().getId())) {
+                return true;
+            }
+        }
+
+        // Mentor of the task creator
+        if (task.getCreatedById() != null) {
+            UserEntity creator = userRepository.findById(task.getCreatedById()).orElse(null);
+            if (creator != null && creator.getMentor() != null && currentUserId.equals(creator.getMentor().getId())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // =========================================================

@@ -18,6 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +93,7 @@ public class MessageController {
 
     @GetMapping("/direct/{userId}")
     public ResponseEntity<?> getDirectMessages(
-            @PathVariable String userId
+            @PathVariable Long userId
     ) {
 
         try {
@@ -412,10 +413,12 @@ public class MessageController {
                 }
 
 
-                String receiverId =
-                        receiverIdObject
-                                .toString();
-
+                Long receiverId;
+                if (receiverIdObject instanceof Number) {
+                    receiverId = ((Number) receiverIdObject).longValue();
+                } else {
+                    receiverId = Long.parseLong(receiverIdObject.toString());
+                }
 
                 UserEntity receiver =
                         userRepository
@@ -668,7 +671,7 @@ public class MessageController {
 
     @PatchMapping("/direct/{userId}/seen")
     public ResponseEntity<?> markMessagesAsSeen(
-            @PathVariable String userId
+            @PathVariable Long userId
     ) {
 
         try {
@@ -743,6 +746,24 @@ public class MessageController {
                 }
             }
 
+            // Also mark corresponding MESSAGE notifications from this sender as read
+            try {
+                List<NotificationEntity> messageNotifications =
+                        notificationRepository.findByUserIdAndType(currentUser.getId(), "MESSAGE");
+                for (NotificationEntity notification : messageNotifications) {
+                    if (notification.getSenderId() != null &&
+                            notification.getSenderId().equals(otherUser.getId()) &&
+                            !Boolean.TRUE.equals(notification.getIsRead())) {
+                        notification.setIsRead(true);
+                        notification.setUpdatedAt(LocalDateTime.now());
+                        notificationRepository.save(notification);
+                    }
+                }
+            } catch (Exception notifEx) {
+                // Keep notification sync non-fatal to message seen operation
+                notifEx.printStackTrace();
+            }
+
             Map<String, Object> response =
                     new HashMap<>();
 
@@ -775,6 +796,187 @@ public class MessageController {
                     .status(
                             HttpStatus.INTERNAL_SERVER_ERROR
                     )
+                    .body(error);
+        }
+    }
+
+
+    // ============================================================
+    // GET UNREAD MESSAGE COUNT AND SENDER IDS FOR CURRENT USER
+    // ============================================================
+
+    @GetMapping("/unread-count")
+    public ResponseEntity<?> getUnreadMessageCount() {
+        try {
+            Authentication auth =
+                    SecurityContextHolder
+                            .getContext()
+                            .getAuthentication();
+
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body("Authentication is required");
+            }
+
+            String username = auth.getName();
+            UserEntity currentUser =
+                    userRepository
+                            .findByUsername(username)
+                            .orElseThrow(
+                                    () -> new RuntimeException(
+                                            "User not found"
+                                    )
+                            );
+
+            // 1. Direct messages involving current user
+            List<MessageEntity> directMessages =
+                    messageRepository.findRecentDirectMessagesForUser(currentUser.getId());
+
+            Map<String, Long> unreadCountsBySender = new HashMap<>();
+            Map<String, String> lastUnreadTimeBySender = new HashMap<>();
+            Map<String, String> lastMessageTimes = new HashMap<>();
+            Map<String, String> latestMessagePreviews = new HashMap<>();
+            Map<String, Long> latestMessageSenderIds = new HashMap<>();
+            List<Long> unreadSenderIds = new ArrayList<>();
+            long directUnreadCount = 0;
+
+            for (MessageEntity m : directMessages) {
+                if (m.getSender() == null || m.getSender().getId() == null) continue;
+
+                Long senderId = m.getSender().getId();
+                Long receiverId = m.getReceiver() != null ? m.getReceiver().getId() : null;
+
+                // Identify the other participant in this direct chat
+                Long otherUserId = senderId.equals(currentUser.getId()) ? receiverId : senderId;
+                if (otherUserId != null) {
+                    String otherKey = String.valueOf(otherUserId);
+                    if (!lastMessageTimes.containsKey(otherKey) && m.getCreatedAt() != null) {
+                        lastMessageTimes.put(otherKey, m.getCreatedAt().toString());
+                    }
+                    if (!latestMessagePreviews.containsKey(otherKey) && m.getContent() != null) {
+                        latestMessagePreviews.put(otherKey, m.getContent());
+                        latestMessageSenderIds.put(otherKey, senderId);
+                    }
+                }
+
+                // Check if this is an unread message sent TO currentUser
+                if (currentUser.getId().equals(receiverId) && !Boolean.TRUE.equals(m.getIsSeen())) {
+                    directUnreadCount++;
+                    String senderKey = String.valueOf(senderId);
+                    unreadCountsBySender.put(senderKey, unreadCountsBySender.getOrDefault(senderKey, 0L) + 1L);
+
+                    if (!unreadSenderIds.contains(senderId)) {
+                        unreadSenderIds.add(senderId);
+                    }
+                    if (!lastUnreadTimeBySender.containsKey(senderKey) && m.getCreatedAt() != null) {
+                        lastUnreadTimeBySender.put(senderKey, m.getCreatedAt().toString());
+                    }
+                }
+            }
+
+            // 2. General unread messages
+            long generalUnreadCount = 0;
+            try {
+                generalUnreadCount = messageRepository.countUnreadGeneralMessages(
+                        currentUser.getId(),
+                        currentUser.getLastGeneralReadId()
+                );
+            } catch (Exception ex) {
+                // If last_general_read_id is not yet populated
+                generalUnreadCount = 0;
+            }
+
+            // 3. Latest General message preview & time
+            String latestGeneralMessagePreview = null;
+            String latestGeneralMessageTime = null;
+            try {
+                List<MessageEntity> recentGeneral = messageRepository.findRecentGeneralMessages();
+                if (!recentGeneral.isEmpty()) {
+                    MessageEntity latestGen = recentGeneral.get(0);
+                    latestGeneralMessagePreview = latestGen.getContent();
+                    if (latestGen.getCreatedAt() != null) {
+                        latestGeneralMessageTime = latestGen.getCreatedAt().toString();
+                    }
+                }
+            } catch (Exception ex) {
+                // Ignore fallback
+            }
+
+            long totalUnread = directUnreadCount + generalUnreadCount;
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("unreadCount", totalUnread);
+            response.put("directUnreadCount", directUnreadCount);
+            response.put("generalUnreadCount", generalUnreadCount);
+            response.put("unreadSenderIds", unreadSenderIds);
+            response.put("unreadCountsBySender", unreadCountsBySender);
+            response.put("lastUnreadTimeBySender", lastUnreadTimeBySender);
+            response.put("lastMessageTimes", lastMessageTimes);
+            response.put("latestMessagePreviews", latestMessagePreviews);
+            response.put("latestMessageSenderIds", latestMessageSenderIds);
+            response.put("latestGeneralMessagePreview", latestGeneralMessagePreview);
+            response.put("latestGeneralMessageTime", latestGeneralMessageTime);
+            response.put("hasGeneralUnread", generalUnreadCount > 0);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Failed to fetch unread message count: " + e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(error);
+        }
+    }
+
+
+    // ============================================================
+    // MARK GENERAL MESSAGES AS SEEN FOR CURRENT USER
+    // ============================================================
+
+    @PatchMapping("/general/seen")
+    public ResponseEntity<?> markGeneralMessagesAsSeen() {
+        try {
+            Authentication auth =
+                    SecurityContextHolder
+                            .getContext()
+                            .getAuthentication();
+
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body("Authentication is required");
+            }
+
+            String username = auth.getName();
+            UserEntity currentUser =
+                    userRepository
+                            .findByUsername(username)
+                            .orElseThrow(
+                                    () -> new RuntimeException(
+                                            "User not found"
+                                    )
+                            );
+
+            Long latestGeneralId = messageRepository.findLatestGeneralMessageId();
+            if (latestGeneralId != null) {
+                currentUser.setLastGeneralReadId(latestGeneralId);
+                userRepository.save(currentUser);
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "General messages marked as seen");
+            response.put("lastGeneralReadId", latestGeneralId != null ? latestGeneralId : 0L);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Failed to mark general messages as seen: " + e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(error);
         }
     }
