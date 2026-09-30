@@ -27,6 +27,7 @@ import NotificationBell from './NotificationBell';
 import ActiveTodayIndicator from './ActiveTodayIndicator';
 import { useAttention } from '../context/AttentionContext';
 import { AttentionDot } from './AttentionDot';
+import { TestVerseLogo, TestVerseIcon } from './TestVerseLogo';
 
 interface MainLayoutProps {
     children: React.ReactNode;
@@ -97,26 +98,31 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNaviga
             {/* Sidebar */}
             <div className={`${collapsed ? 'w-16' : 'w-64'} bg-white border-r border-[#E2E8F0] transition-all duration-300 flex flex-col shadow-sm`}>
                 {/* Logo */}
-                <div className="flex items-center justify-between p-4 border-b border-[#E2E8F0]">
+                <div className={`flex items-center ${collapsed ? 'flex-col gap-2 py-3 px-2' : 'justify-between p-4'} border-b border-[#E2E8F0] min-h-[61px]`}>
                     {!collapsed && (
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 bg-gradient-to-br from-[#0062E0] to-[#00B388] rounded-lg flex items-center justify-center font-bold text-white text-xs shadow-sm">
-                                TV
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-base font-bold text-[#0F172A] tracking-tight">TestVerse</span>
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#00B388]" />
-                            </div>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleNavigation('dashboard', '/dashboard')}
+                            className="flex items-center text-left focus:outline-none transition-opacity hover:opacity-90 cursor-pointer"
+                            title="TestVerse Dashboard"
+                        >
+                            <TestVerseLogo height={22} idPrefix="tv-sidebar" />
+                        </button>
                     )}
                     {collapsed && (
-                        <div className="w-8 h-8 bg-gradient-to-br from-[#0062E0] to-[#00B388] rounded-lg flex items-center justify-center font-bold text-white text-xs mx-auto shadow-sm">
-                            TV
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleNavigation('dashboard', '/dashboard')}
+                            className="flex items-center justify-center mx-auto focus:outline-none transition-transform hover:scale-105 cursor-pointer"
+                            title="TestVerse Dashboard"
+                        >
+                            <TestVerseIcon height={26} idPrefix="tv-sidebar-col" />
+                        </button>
                     )}
                     <button
                         onClick={() => setCollapsed(!collapsed)}
                         className="text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] p-1 rounded-md transition-colors"
+                        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                     >
                         {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
                     </button>
@@ -188,6 +194,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNaviga
                         <button className="lg:hidden text-[#64748B] hover:text-[#0F172A]">
                             <Menu size={22} />
                         </button>
+                        <div className="lg:hidden flex items-center mr-1">
+                            <button
+                                type="button"
+                                onClick={() => handleNavigation('dashboard', '/dashboard')}
+                                className="flex items-center focus:outline-none"
+                                title="TestVerse Dashboard"
+                            >
+                                <TestVerseLogo height={18} idPrefix="tv-topbar" />
+                            </button>
+                        </div>
                         <div className="flex items-center gap-2.5 flex-1 max-w-md">
                             <Search size={17} className="text-[#94A3B8]" />
                             <input

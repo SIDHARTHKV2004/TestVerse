@@ -30,6 +30,7 @@ import {
 
 import { useAttention } from '../context/AttentionContext';
 import { AttentionDot } from './AttentionDot';
+import { TestVerseLogo } from './TestVerseLogo';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -131,14 +132,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         >
           {/* Logo */}
           <div className="p-4 border-b border-[#E2E8F0] flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#0062E0] to-[#00B388] rounded-lg flex items-center justify-center shadow-sm">
-                <Rocket className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-base font-bold text-[#0F172A] tracking-tight">TestVerse</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00B388]" />
-              </div>
+            <div className="flex items-center">
+              <TestVerseLogo height={22} idPrefix="tv-sidebar-drawer" />
             </div>
             <button onClick={onClose} className="lg:hidden text-[#64748B] hover:text-[#0F172A] p-1 rounded-md">
               <X size={20} />
