@@ -46,19 +46,6 @@ const AdminUsersPage: React.FC = () => {
     const [mentorSubmitting, setMentorSubmitting] = useState(false);
     const [mentorModalError, setMentorModalError] = useState<string | null>(null);
 
-    // Create Mentor/Faculty modal state
-    const [showCreateMentor, setShowCreateMentor] = useState(false);
-    const [createMentorForm, setCreateMentorForm] = useState({
-        name: '',
-        email: '',
-        password: '',
-        domain: '',
-        canMentorDeveloper: false,
-        canMentorTester: true
-    });
-    const [createMentorLoading, setCreateMentorLoading] = useState(false);
-    const [createMentorError, setCreateMentorError] = useState<string | null>(null);
-
     useEffect(() => {
         fetchUsers();
     }, []);
@@ -266,9 +253,9 @@ const AdminUsersPage: React.FC = () => {
         setMentorModalError(null);
         setMentorLoading(true);
 
-        const role = targetUser.role === 'TESTER' ? 'TESTER' : 'DEVELOPER';
+        const department = targetUser.role === 'TESTER' ? 'TESTING' : 'DEVELOPMENT';
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/mentors?role=${encodeURIComponent(role)}`);
+            const response = await fetch(`${API_BASE_URL}/api/auth/mentors?department=${encodeURIComponent(department)}`);
             if (!response.ok) {
                 const errText = await response.text();
                 throw new Error(errText || 'Failed to load mentors');
@@ -327,55 +314,6 @@ const AdminUsersPage: React.FC = () => {
         setMentorModalError(null);
     };
 
-    // ============================================================
-    // CREATE MENTOR HANDLER
-    // ============================================================
-    const handleCreateMentor = async (e: React.FormEvent): Promise<void> => {
-        e.preventDefault();
-        if (!createMentorForm.domain.trim()) {
-            setCreateMentorError('Domain / Specialization is required');
-            return;
-        }
-        if (!createMentorForm.canMentorDeveloper && !createMentorForm.canMentorTester) {
-            setCreateMentorError('Please select at least one role the mentor can supervise (Developer or Tester)');
-            return;
-        }
-
-        setCreateMentorLoading(true);
-        setCreateMentorError(null);
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/admin/users/create-mentor`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(createMentorForm),
-            });
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || 'Failed to create mentor');
-            }
-            const data = await response.json();
-            alert(`✅ Mentor "${data.name}" created successfully! They can log in with their email and password.`);
-            setShowCreateMentor(false);
-            setCreateMentorForm({
-                name: '',
-                email: '',
-                password: '',
-                domain: '',
-                canMentorDeveloper: false,
-                canMentorTester: true
-            });
-            await fetchUsers();
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Failed to create mentor';
-            setCreateMentorError(msg);
-        } finally {
-            setCreateMentorLoading(false);
-        }
-    };
-
     const getStatusBadge = (status: string): string => {
         const styles: Record<string, string> = {
             'PENDING': 'bg-amber-50 text-amber-700 border-amber-200 font-medium',
@@ -425,14 +363,6 @@ const AdminUsersPage: React.FC = () => {
                         🔒 Admin accounts cannot be deleted for security reasons
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
-                <button
-                    onClick={() => setShowCreateMentor(true)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white border border-purple-700 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-xs text-sm font-medium"
-                >
-                    <GraduationCap size={16} />
-                    Create Mentor
-                </button>
                 <button
                     onClick={fetchUsers}
                     className="bg-white hover:bg-slate-50 text-slate-700 border border-[#E2E8F0] px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-xs text-sm font-medium"
@@ -440,7 +370,6 @@ const AdminUsersPage: React.FC = () => {
                     <RefreshCw size={16} />
                     Refresh
                 </button>
-                </div>
             </div>
 
             {error && (
@@ -741,150 +670,6 @@ const AdminUsersPage: React.FC = () => {
                                 {mentorSubmitting ? 'Saving...' : 'Confirm Assignment'}
                             </button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Create Mentor / Faculty Modal ── */}
-            {showCreateMentor && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white border border-[#E2E8F0] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-                        <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-                            <div className="flex items-center gap-2">
-                                <GraduationCap size={20} className="text-purple-600" />
-                                <div>
-                                    <h2 className="text-base font-bold text-[#0F172A]">Create Mentor / Faculty</h2>
-                                    <p className="text-xs text-slate-500">Create an active mentor account with direct access</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    setShowCreateMentor(false);
-                                    setCreateMentorError(null);
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {createMentorError && (
-                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs flex items-center gap-2">
-                                <AlertCircle size={14} className="flex-shrink-0" />
-                                <span>{createMentorError}</span>
-                            </div>
-                        )}
-
-                        <form onSubmit={handleCreateMentor} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Full Name <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={createMentorForm.name}
-                                    onChange={(e) => setCreateMentorForm({ ...createMentorForm, name: e.target.value })}
-                                    placeholder="e.g. Dr. Jane Smith"
-                                    className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Email Address <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="email"
-                                    required
-                                    value={createMentorForm.email}
-                                    onChange={(e) => setCreateMentorForm({ ...createMentorForm, email: e.target.value })}
-                                    placeholder="mentor@university.edu"
-                                    className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Initial Password <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="password"
-                                    required
-                                    minLength={6}
-                                    value={createMentorForm.password}
-                                    onChange={(e) => setCreateMentorForm({ ...createMentorForm, password: e.target.value })}
-                                    placeholder="Min. 6 characters"
-                                    className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Domain / Specialization <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={createMentorForm.domain}
-                                    onChange={(e) => setCreateMentorForm({ ...createMentorForm, domain: e.target.value })}
-                                    placeholder="e.g. Automation Testing, Performance Testing, API Testing..."
-                                    className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition"
-                                />
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                    Admin can enter any technical specialization (e.g. Automation Testing, AI Testing, Fullstack, etc.).
-                                </p>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Can Mentor <span className="text-red-500">*</span>
-                                </label>
-                                <div className="flex items-center gap-6 mt-2">
-                                    <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 select-none">
-                                        <input
-                                            type="checkbox"
-                                            checked={createMentorForm.canMentorDeveloper}
-                                            onChange={(e) => setCreateMentorForm({ ...createMentorForm, canMentorDeveloper: e.target.checked })}
-                                            className="w-4 h-4 rounded text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
-                                        />
-                                        <span>Developer</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 select-none">
-                                        <input
-                                            type="checkbox"
-                                            checked={createMentorForm.canMentorTester}
-                                            onChange={(e) => setCreateMentorForm({ ...createMentorForm, canMentorTester: e.target.checked })}
-                                            className="w-4 h-4 rounded text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
-                                        />
-                                        <span>Tester</span>
-                                    </label>
-                                </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                    Select which student roles can register under or be assigned to this faculty.
-                                </p>
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#F1F5F9]">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowCreateMentor(false);
-                                        setCreateMentorError(null);
-                                    }}
-                                    className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={createMentorLoading}
-                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium text-xs rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm flex items-center gap-1.5"
-                                >
-                                    {createMentorLoading ? 'Creating...' : 'Create Mentor'}
-                                </button>
-                            </div>
-                        </form>
                     </div>
                 </div>
             )}

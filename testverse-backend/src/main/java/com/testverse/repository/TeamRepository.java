@@ -16,8 +16,6 @@ public interface TeamRepository extends JpaRepository<TeamEntity, Long> {
 
     List<TeamEntity> findByAdminId(Long adminId);
 
-    List<TeamEntity> findByCreatedByMentorId(Long mentorId);
-
     @Query("SELECT t FROM TeamEntity t JOIN t.members m WHERE m.id = :userId")
     List<TeamEntity> findByMembersId(@Param("userId") Long userId);
-}
+}

@@ -119,13 +119,14 @@ public class AuthController {
                 }
 
                 // Check role-mentor compatibility
-                boolean isEligible = (userRole == UserRole.TESTER)
-                        ? mentor.canMentorTester()
-                        : mentor.canMentorDeveloper();
+                String expectedDepartment = (userRole == UserRole.TESTER) ? "TESTING" : "DEVELOPMENT";
+                String mentorDepartment = mentor.getDepartment() != null
+                        ? mentor.getDepartment().trim().toUpperCase()
+                        : "";
 
-                if (!isEligible) {
+                if (!expectedDepartment.equals(mentorDepartment)) {
                     return ResponseEntity.badRequest()
-                            .body("Selected mentor (" + mentor.getName() + " - " + mentor.getDepartment() + ") is not eligible to mentor " + userRole + "s");
+                            .body("Role-mentor mismatch: " + userRole + " must be assigned a " + expectedDepartment + " mentor");
                 }
             }
 
@@ -363,12 +364,6 @@ public class AuthController {
             response.put("name", user.getName());
             response.put("role", user.getRole().toString());
             response.put("status", user.getStatus().toString());
-            response.put("department", user.getDepartment());
-            response.put("domain", user.getDepartment());
-            if (user.getRole() == UserRole.MENTOR) {
-                response.put("canMentorDeveloper", user.canMentorDeveloper());
-                response.put("canMentorTester", user.canMentorTester());
-            }
 
             return ResponseEntity.ok(response);
 
@@ -382,76 +377,92 @@ public class AuthController {
         }
     }
     // ============================================================
-    // ============================================================
-    // GET ELIGIBLE MENTORS
-    // Returns active mentors filtered by role (TESTER or DEVELOPER)
-    // or legacy department (TESTING or DEVELOPMENT).
-    // If no filter is specified, returns all active mentors.
+    // GET MENTORS BY DEPARTMENT
+    // Returns only ACTIVE mentors from the selected department.
     // Example:
-    // /api/auth/mentors?role=TESTER
+    // /api/auth/mentors?department=TESTING
     // ============================================================
     @GetMapping("/mentors")
     public ResponseEntity<?> getMentors(
-            @RequestParam(required = false) String role,
-            @RequestParam(required = false) String department) {
+            @RequestParam String department) {
 
         try {
-            UserRole targetRole = null;
-            if (role != null && !role.isBlank()) {
-                String r = role.trim().toUpperCase();
-                if ("TESTER".equals(r)) {
-                    targetRole = UserRole.TESTER;
-                } else if ("DEVELOPER".equals(r)) {
-                    targetRole = UserRole.DEVELOPER;
-                }
-            } else if (department != null && !department.isBlank()) {
-                String d = department.trim().toUpperCase();
-                if ("TESTING".equals(d)) {
-                    targetRole = UserRole.TESTER;
-                } else if ("DEVELOPMENT".equals(d)) {
-                    targetRole = UserRole.DEVELOPER;
-                }
+
+            // ----------------------------------------------------
+            // Validate department
+            // ----------------------------------------------------
+            if (department == null || department.isBlank()) {
+                return ResponseEntity
+                        .badRequest()
+                        .body("Department is required");
             }
 
-            List<UserEntity> allMentors =
-                    userRepository.findByRoleAndStatus(UserRole.MENTOR, UserStatus.ACTIVE);
+            String normalizedDepartment =
+                    department.trim().toUpperCase();
 
-            final UserRole finalTargetRole = targetRole;
-            List<UserEntity> eligibleMentors = allMentors.stream()
-                    .filter(m -> {
-                        if (finalTargetRole == UserRole.TESTER) {
-                            return m.canMentorTester();
-                        } else if (finalTargetRole == UserRole.DEVELOPER) {
-                            return m.canMentorDeveloper();
-                        }
-                        return true;
-                    })
-                    .toList();
+            // ----------------------------------------------------
+            // Allow only our supported departments
+            // ----------------------------------------------------
+            if (!normalizedDepartment.equals("TESTING")
+                    && !normalizedDepartment.equals("DEVELOPMENT")) {
 
-            List<Map<String, Object>> mentorList = eligibleMentors.stream()
-                    .map(mentor -> {
-                        Map<String, Object> mentorData = new HashMap<>();
-                        mentorData.put("id", String.valueOf(mentor.getId()));
-                        mentorData.put("name", mentor.getName());
-                        mentorData.put("email", mentor.getEmail());
-                        mentorData.put("department", mentor.getDepartment());
-                        mentorData.put("domain", mentor.getDepartment());
-                        mentorData.put("canMentorDeveloper", mentor.canMentorDeveloper());
-                        mentorData.put("canMentorTester", mentor.canMentorTester());
+                return ResponseEntity
+                        .badRequest()
+                        .body(
+                                "Invalid department. Allowed: TESTING, DEVELOPMENT"
+                        );
+            }
 
-                        long activeCount = finalTargetRole != null
-                                ? userRepository.countByMentorAndRoleAndStatus(mentor, finalTargetRole, UserStatus.ACTIVE)
-                                : userRepository.countByMentorAndStatus(mentor, UserStatus.ACTIVE);
-                        mentorData.put("activeCount", activeCount);
+            // ----------------------------------------------------
+            // Find ACTIVE mentors in this department
+            // ----------------------------------------------------
+            List<UserEntity> mentors =
+                    userRepository
+                            .findByRoleAndDepartmentAndStatus(
+                                    UserRole.MENTOR,
+                                    normalizedDepartment,
+                                    UserStatus.ACTIVE
+                            );
 
-                        return mentorData;
-                    })
-                    .toList();
+            // ----------------------------------------------------
+            // Determine target role for counting active mentees
+            // ----------------------------------------------------
+            UserRole targetRole = normalizedDepartment.equals("TESTING")
+                    ? UserRole.TESTER
+                    : UserRole.DEVELOPER;
+
+            // ----------------------------------------------------
+            // Return only the information frontend needs.
+            // Do NOT return the complete UserEntity.
+            // ----------------------------------------------------
+            List<Map<String, Object>> mentorList =
+                    mentors.stream()
+                            .map(mentor -> {
+
+                                Map<String, Object> mentorData =
+                                        new HashMap<>();
+
+                                mentorData.put("id", String.valueOf(mentor.getId()));
+                                mentorData.put("name", mentor.getName());
+                                mentorData.put("department", normalizedDepartment);
+
+                                long activeCount = userRepository.countByMentorAndRoleAndStatus(
+                                        mentor,
+                                        targetRole,
+                                        UserStatus.ACTIVE
+                                );
+                                mentorData.put("activeCount", activeCount);
+
+                                return mentorData;
+                            })
+                            .toList();
 
             return ResponseEntity.ok(mentorList);
 
         } catch (Exception e) {
+
             e.printStackTrace();
+
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to load mentors");

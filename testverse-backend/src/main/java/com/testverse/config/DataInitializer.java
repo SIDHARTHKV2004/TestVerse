@@ -90,8 +90,6 @@ public class DataInitializer implements CommandLineRunner {
                     .role(UserRole.MENTOR)
                     .status(UserStatus.ACTIVE)
                     .department("TESTING")
-                    .canMentorTester(true)
-                    .canMentorDeveloper(false)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
@@ -99,16 +97,8 @@ public class DataInitializer implements CommandLineRunner {
             userRepository.save(mentor);
         } else {
             UserEntity existingMentor = mentorOpt.get();
-            boolean changed = false;
             if (existingMentor.getDepartment() == null || existingMentor.getDepartment().isBlank()) {
                 existingMentor.setDepartment("TESTING");
-                changed = true;
-            }
-            if (existingMentor.getCanMentorTester() == null) {
-                existingMentor.setCanMentorTester(true);
-                changed = true;
-            }
-            if (changed) {
                 existingMentor.setUpdatedAt(LocalDateTime.now());
                 userRepository.save(existingMentor);
             }
@@ -128,8 +118,6 @@ public class DataInitializer implements CommandLineRunner {
                     .role(UserRole.MENTOR)
                     .status(UserStatus.ACTIVE)
                     .department("DEVELOPMENT")
-                    .canMentorDeveloper(true)
-                    .canMentorTester(false)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
@@ -137,16 +125,8 @@ public class DataInitializer implements CommandLineRunner {
             userRepository.save(devMentor);
         } else {
             UserEntity existingDevMentor = devMentorOpt.get();
-            boolean changed = false;
             if (existingDevMentor.getDepartment() == null || existingDevMentor.getDepartment().isBlank()) {
                 existingDevMentor.setDepartment("DEVELOPMENT");
-                changed = true;
-            }
-            if (existingDevMentor.getCanMentorDeveloper() == null) {
-                existingDevMentor.setCanMentorDeveloper(true);
-                changed = true;
-            }
-            if (changed) {
                 existingDevMentor.setUpdatedAt(LocalDateTime.now());
                 userRepository.save(existingDevMentor);
             }

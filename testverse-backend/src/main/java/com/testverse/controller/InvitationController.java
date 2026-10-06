@@ -32,23 +32,17 @@ public class InvitationController {
     @Autowired
     private TeamRepository teamRepository;
 
-    private UserEntity resolveUser(Authentication auth) {
-        if (auth == null || !auth.isAuthenticated()) return null;
-        Object principal = auth.getPrincipal();
-        if (principal instanceof UserEntity) return (UserEntity) principal;
-        String name = auth.getName();
-        if (name == null || name.isBlank()) return null;
-        return userRepository.findByEmail(name)
-                .or(() -> userRepository.findByUsername(name))
-                .orElse(null);
-    }
-
     // ===== SEND INVITATION (Admin only) =====
     @PostMapping
     public ResponseEntity<?> sendInvitation(@RequestBody Map<String, Object> request) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            UserEntity admin = resolveUser(auth);
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity admin = userRepository.findByUsername(username).orElse(null);
 
             if (admin == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
@@ -118,7 +112,12 @@ public class InvitationController {
     public ResponseEntity<?> getAllInvitations() {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            UserEntity admin = resolveUser(auth);
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity admin = userRepository.findByUsername(username).orElse(null);
 
             if (admin == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
@@ -156,7 +155,12 @@ public class InvitationController {
     public ResponseEntity<?> getMyInvitations() {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            UserEntity user = resolveUser(auth);
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity user = userRepository.findByUsername(username).orElse(null);
 
             if (user == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
@@ -190,7 +194,12 @@ public class InvitationController {
     public ResponseEntity<?> acceptInvitation(@PathVariable Long id) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            UserEntity user = resolveUser(auth);
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity user = userRepository.findByUsername(username).orElse(null);
 
             if (user == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
@@ -245,7 +254,12 @@ public class InvitationController {
     public ResponseEntity<?> declineInvitation(@PathVariable Long id) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            UserEntity user = resolveUser(auth);
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity user = userRepository.findByUsername(username).orElse(null);
 
             if (user == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
@@ -281,7 +295,12 @@ public class InvitationController {
     public ResponseEntity<?> deleteInvitation(@PathVariable Long id) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            UserEntity admin = resolveUser(auth);
+            if (auth == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
+
+            String username = auth.getName();
+            UserEntity admin = userRepository.findByUsername(username).orElse(null);
 
             if (admin == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));

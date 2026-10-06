@@ -3,11 +3,9 @@ package com.testverse.repository;
 import com.testverse.model.MessageEntity;
 import com.testverse.model.MessageType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -75,17 +73,4 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long> {
     List<MessageEntity> findBySenderIdOrderByCreatedAtDesc(
             Long senderId
     );
-
-    // ==================== TEAM CHAT ====================
-
-    // Get team messages ordered chronologically
-    List<MessageEntity> findByMessageTypeAndTeamIdOrderByCreatedAtAsc(
-            MessageType messageType,
-            Long teamId
-    );
-
-    @Modifying
-    @Transactional
-    @Query("DELETE FROM MessageEntity m WHERE m.team.id = :teamId")
-    void deleteByTeamId(@Param("teamId") Long teamId);
 }

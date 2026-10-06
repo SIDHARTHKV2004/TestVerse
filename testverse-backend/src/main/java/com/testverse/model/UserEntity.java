@@ -2,7 +2,6 @@ package com.testverse.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -30,12 +29,10 @@ public class UserEntity implements UserDetails {
     @Column(unique = true)
     private String username;
 
-    @JsonIgnore
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
     // Backward-compatible mapping for existing legacy database column
-    @JsonIgnore
     @Column(name = "password", nullable = true)
     private String legacyPassword;
 
@@ -57,29 +54,10 @@ public class UserEntity implements UserDetails {
     private UserStatus status;
 
     // ============================================================
-    // DEPARTMENT / DOMAIN
-    // Specialization e.g. "Automation Testing", "Performance Testing",
-    // or legacy "TESTING", "DEVELOPMENT"
+    // DEPARTMENT
+    // Example: TESTING or DEVELOPMENT
     // ============================================================
     private String department;
-
-    @Column(name = "can_mentor_developer")
-    private Boolean canMentorDeveloper;
-
-    @Column(name = "can_mentor_tester")
-    private Boolean canMentorTester;
-
-    public boolean canMentorDeveloper() {
-        if (Boolean.TRUE.equals(canMentorDeveloper)) return true;
-        if (canMentorDeveloper == null && "DEVELOPMENT".equalsIgnoreCase(department)) return true;
-        return false;
-    }
-
-    public boolean canMentorTester() {
-        if (Boolean.TRUE.equals(canMentorTester)) return true;
-        if (canMentorTester == null && "TESTING".equalsIgnoreCase(department)) return true;
-        return false;
-    }
 
     // ============================================================
     // MENTOR
@@ -104,7 +82,6 @@ public class UserEntity implements UserDetails {
     @Column(name = "last_general_read_id")
     private Long lastGeneralReadId;
 
-    @JsonIgnore
     @Override
     public String getPassword() {
         return passwordHash;

@@ -28,31 +28,21 @@ public class AutomationController {
     @Autowired
     private UserRepository userRepository;
 
-    private UserEntity resolveUser(Authentication auth) {
-        if (auth == null || !auth.isAuthenticated()) return null;
-        Object principal = auth.getPrincipal();
-        if (principal instanceof UserEntity) return (UserEntity) principal;
-        String name = auth.getName();
-        if (name == null || name.isBlank()) return null;
-        return userRepository.findByEmail(name)
-                .or(() -> userRepository.findByUsername(name))
-                .orElse(null);
-    }
-
     @PostMapping
     public ResponseEntity<?> createScript(
             @RequestBody Map<String, Object> request,
             Authentication auth) {
 
         try {
-            UserEntity user = resolveUser(auth);
+            UserEntity user =
+                    userRepository.findByUsername(auth.getName()).orElse(null);
 
             if (user == null) {
                 return ResponseEntity.status(401).build();
             }
 
             if (user.getRole() == com.testverse.model.UserRole.DEVELOPER
-                    || (user.getRole() == com.testverse.model.UserRole.MENTOR && user.canMentorDeveloper() && !user.canMentorTester())) {
+                    || (user.getRole() == com.testverse.model.UserRole.MENTOR && "DEVELOPMENT".equalsIgnoreCase(user.getDepartment()))) {
                 return ResponseEntity.status(403).body(Map.of("error", "Access denied: Developers cannot access Automation scripts. Please use DevelopingHub."));
             }
 
@@ -102,14 +92,15 @@ public class AutomationController {
     public ResponseEntity<List<AutomationScriptEntity>> getMyScripts(
             Authentication auth) {
 
-        UserEntity user = resolveUser(auth);
+        UserEntity user =
+                userRepository.findByUsername(auth.getName()).orElse(null);
 
         if (user == null) {
             return ResponseEntity.status(401).build();
         }
 
         if (user.getRole() == com.testverse.model.UserRole.DEVELOPER
-                || (user.getRole() == com.testverse.model.UserRole.MENTOR && user.canMentorDeveloper() && !user.canMentorTester())) {
+                || (user.getRole() == com.testverse.model.UserRole.MENTOR && "DEVELOPMENT".equalsIgnoreCase(user.getDepartment()))) {
             return ResponseEntity.status(403).build();
         }
 
