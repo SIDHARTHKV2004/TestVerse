@@ -37,6 +37,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/api/public/**", "/h2-console/**", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -58,8 +59,12 @@ public class SecurityConfig {
         List<String> allowedOrigins;
 
         if (corsOriginsEnv != null && !corsOriginsEnv.isEmpty()) {
-            // Split by comma if multiple origins
-            allowedOrigins = Arrays.asList(corsOriginsEnv.split(","));
+            // Split by comma, trim whitespace, and strip accidental trailing slashes
+            allowedOrigins = Arrays.stream(corsOriginsEnv.split(","))
+                    .map(String::trim)
+                    .map(o -> o.endsWith("/") ? o.substring(0, o.length() - 1) : o)
+                    .filter(o -> !o.isEmpty())
+                    .collect(java.util.stream.Collectors.toList());
         } else {
             // Default origins for development
             allowedOrigins = Arrays.asList(

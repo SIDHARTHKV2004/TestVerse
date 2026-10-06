@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { X, Upload } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 interface BugModalProps {
   isOpen: boolean;
@@ -85,7 +86,7 @@ const BugModal: React.FC<BugModalProps> = ({ isOpen, onClose, onSuccess }) => {
 
       console.log('📤 Sending bug data (JSON):', jsonData);
 
-      const response = await fetch('http://localhost:8080/api/bugs', {
+      const response = await fetch(`${API_BASE_URL}/api/bugs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

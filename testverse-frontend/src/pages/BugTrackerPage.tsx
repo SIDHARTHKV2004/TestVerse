@@ -5,7 +5,7 @@ import {
   Bug, Image, Upload, X, Trash2, Eye, Edit2, GripVertical,
   Save, FileImage, Maximize2, User, Calendar, Tag, Layers, Info, Lock
 } from 'lucide-react';
-import { createBug, BugReport as ApiBugReport, fetchDevelopers } from '../services/api';
+import { API_BASE_URL, createBug, BugReport as ApiBugReport, fetchDevelopers } from '../services/api';
 
 // Extend the API BugReport type to match our local requirements
 interface BugReport extends ApiBugReport {
@@ -80,7 +80,7 @@ const BugTrackerPage: React.FC = () => {
   const fetchBugs = async (): Promise<void> => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8080/api/bugs', {
+      const response = await fetch(`${API_BASE_URL}/api/bugs`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -297,7 +297,7 @@ const BugTrackerPage: React.FC = () => {
     setDragState({ bugId: null, sourceStatus: null });
 
     try {
-      const response = await fetch(`http://localhost:8080/api/bugs/${bugId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/api/bugs/${bugId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -412,7 +412,7 @@ const BugTrackerPage: React.FC = () => {
         screenshotUrl: formData.screenshotFile || editingBug.screenshotUrl,
       };
 
-      const response = await fetch(`http://localhost:8080/api/bugs/${editingBug.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/bugs/${editingBug.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -450,7 +450,7 @@ const BugTrackerPage: React.FC = () => {
   const handleDeleteBug = async (id: string | number): Promise<void> => {
     if (!confirm('Are you sure you want to delete this bug?')) return;
     try {
-      const response = await fetch(`http://localhost:8080/api/bugs/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/bugs/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });

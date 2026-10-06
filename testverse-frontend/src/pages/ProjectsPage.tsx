@@ -5,6 +5,7 @@ import {
     Folder, Calendar, User, Code, CheckCircle,
     Clock, AlertCircle, Eye, Save, GitBranch
 } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 interface Project {
     id: string | number;
@@ -49,7 +50,7 @@ const ProjectsPage: React.FC = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:8080/api/projects', {
+            const response = await fetch(`${API_BASE_URL}/api/projects`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -102,7 +103,7 @@ const ProjectsPage: React.FC = () => {
                 progress: formData.progress || 0,
             };
 
-            const response = await fetch('http://localhost:8080/api/projects', {
+            const response = await fetch(`${API_BASE_URL}/api/projects`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -142,7 +143,7 @@ const ProjectsPage: React.FC = () => {
                 progress: editingProject.progress || 0,
             };
 
-            const response = await fetch(`http://localhost:8080/api/projects/${editingProject.id}`, {
+            const response = await fetch(`${API_BASE_URL}/api/projects/${editingProject.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -172,7 +173,7 @@ const ProjectsPage: React.FC = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:8080/api/projects/${id}`, {
+            const response = await fetch(`${API_BASE_URL}/api/projects/${id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,

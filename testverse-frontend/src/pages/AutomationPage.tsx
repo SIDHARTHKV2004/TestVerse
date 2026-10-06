@@ -52,6 +52,7 @@ import {
   AutomationAccessRequest,
   IdeStatusResponse
 } from '../services/automationHubApi';
+import { API_BASE_URL } from '../services/api';
 
 // Legacy script interface for backward compatibility
 interface LegacyScript {
@@ -282,7 +283,7 @@ export const AutomationPage: React.FC = () => {
   const loadLegacyScripts = async () => {
     try {
       const endpoint = isAdmin ? '/api/automation' : '/api/automation/my-scripts';
-      const response = await fetch(`http://localhost:8080${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
@@ -1977,7 +1978,7 @@ export const AutomationPage: React.FC = () => {
               onSubmit={async (e) => {
                 e.preventDefault();
                 try {
-                  const response = await fetch('http://localhost:8080/api/automation', {
+                  const response = await fetch(`${API_BASE_URL}/api/automation`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',

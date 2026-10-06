@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Search, Users, MessageSquare, Heart, Share2, User, X, ThumbsUp } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 interface Post {
     id: number;
@@ -33,7 +34,7 @@ const CommunityPage: React.FC = () => {
 
     const fetchPosts = async () => {
         try {
-            const response = await fetch('http://localhost:8080/api/posts', {
+            const response = await fetch(`${API_BASE_URL}/api/posts`, {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
             if (response.ok) {
@@ -50,7 +51,7 @@ const CommunityPage: React.FC = () => {
     const handleCreatePost = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const response = await fetch('http://localhost:8080/api/posts', {
+            const response = await fetch(`${API_BASE_URL}/api/posts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -76,7 +77,7 @@ const CommunityPage: React.FC = () => {
 
     const handleLikePost = async (postId: number) => {
         try {
-            const response = await fetch(`http://localhost:8080/api/posts/${postId}/like`, {
+            const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
             });

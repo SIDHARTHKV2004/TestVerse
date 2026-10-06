@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../services/api';
 import {
   FolderKanban,
   ClipboardList,
@@ -71,19 +72,19 @@ const DashboardPage: React.FC = () => {
         const token = localStorage.getItem('token');
 
         const [modulesRes, tasksRes, bugsRes, teamRes, communityRes] = await Promise.all([
-          fetch('http://localhost:8080/api/projects', {
+          fetch(`${API_BASE_URL}/api/projects`, {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch('http://localhost:8080/api/tasks', {
+          fetch(`${API_BASE_URL}/api/tasks`, {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch('http://localhost:8080/api/bugs', {
+          fetch(`${API_BASE_URL}/api/bugs`, {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch('http://localhost:8080/api/team', {
+          fetch(`${API_BASE_URL}/api/team`, {
             headers: { 'Authorization': `Bearer ${token}` }
           }).catch(() => ({ ok: false, json: () => [] })),
-          fetch('http://localhost:8080/api/community/posts', {
+          fetch(`${API_BASE_URL}/api/community/posts`, {
             headers: { 'Authorization': `Bearer ${token}` }
           }).catch(() => ({ ok: false, json: () => [] }))
         ]);

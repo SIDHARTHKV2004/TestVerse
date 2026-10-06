@@ -4,6 +4,7 @@ import {
     User, Mail, Key, Save, Camera, Lock, Edit2, X, Calendar, Award,
     LogOut
 } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 const ProfilePage: React.FC = () => {
     const { user, token } = useAuth();
@@ -42,7 +43,7 @@ const ProfilePage: React.FC = () => {
         setMessage(null);
 
         try {
-            const response = await fetch('http://localhost:8080/api/users/update', {
+            const response = await fetch(`${API_BASE_URL}/api/users/update`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -79,7 +80,7 @@ const ProfilePage: React.FC = () => {
         }
 
         try {
-            const response = await fetch('http://localhost:8080/api/users/change-password', {
+            const response = await fetch(`${API_BASE_URL}/api/users/change-password`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Users, UserPlus, Trash2, User, Plus, X } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 interface Team {
     id: number;
@@ -55,7 +56,7 @@ const TeamPage: React.FC = () => {
             // ✅ Admin uses different endpoint
             if (isAdmin) {
                 console.log('📤 Calling /admin-team...');
-                const response = await fetch('http://localhost:8080/api/teams/admin-team', {
+                const response = await fetch(`${API_BASE_URL}/api/teams/admin-team`, {
                     headers: { 'Authorization': `Bearer ${token}` },
                 });
 
@@ -83,7 +84,7 @@ const TeamPage: React.FC = () => {
             } else {
                 // Non-admin: get my teams
                 console.log('📤 Calling /my-teams...');
-                const response = await fetch('http://localhost:8080/api/teams/my-teams', {
+                const response = await fetch(`${API_BASE_URL}/api/teams/my-teams`, {
                     headers: { 'Authorization': `Bearer ${token}` },
                 });
 
@@ -102,7 +103,7 @@ const TeamPage: React.FC = () => {
 
                 // Fetch available teams for non-admin users
                 console.log('📤 Calling /available...');
-                const availableResponse = await fetch('http://localhost:8080/api/teams/available', {
+                const availableResponse = await fetch(`${API_BASE_URL}/api/teams/available`, {
                     headers: { 'Authorization': `Bearer ${token}` },
                 });
 
@@ -125,7 +126,7 @@ const TeamPage: React.FC = () => {
 
     const fetchAllUsers = async (): Promise<void> => {
         try {
-            const response = await fetch('http://localhost:8080/api/admin/users', {
+            const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
             if (response.ok) {
@@ -140,7 +141,7 @@ const TeamPage: React.FC = () => {
     const handleCreateTeam = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault();
         try {
-            const response = await fetch('http://localhost:8080/api/teams', {
+            const response = await fetch(`${API_BASE_URL}/api/teams`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -169,7 +170,7 @@ const TeamPage: React.FC = () => {
 
     const handleAddMember = async (teamId: number, userId: number): Promise<void> => {
         try {
-            const response = await fetch(`http://localhost:8080/api/teams/${teamId}/members`, {
+            const response = await fetch(`${API_BASE_URL}/api/teams/${teamId}/members`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -195,7 +196,7 @@ const TeamPage: React.FC = () => {
     const handleRemoveMember = async (teamId: number, userId: number): Promise<void> => {
         if (!confirm('Are you sure you want to remove this member?')) return;
         try {
-            const response = await fetch(`http://localhost:8080/api/teams/${teamId}/members/${userId}`, {
+            const response = await fetch(`${API_BASE_URL}/api/teams/${teamId}/members/${userId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` },
             });
@@ -214,7 +215,7 @@ const TeamPage: React.FC = () => {
     const handleJoinTeam = async (teamId: number): Promise<void> => {
         setJoining(teamId);
         try {
-            const response = await fetch(`http://localhost:8080/api/teams/${teamId}/request-join`, {
+            const response = await fetch(`${API_BASE_URL}/api/teams/${teamId}/request-join`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

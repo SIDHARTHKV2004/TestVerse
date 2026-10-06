@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Search, X } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 // ✅ Make props optional
 interface SearchPageProps {
@@ -42,7 +43,7 @@ const SearchPage: React.FC<SearchPageProps> = ({
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-          `http://localhost:8080/api/search?q=${encodeURIComponent(searchTerm)}`,
+          `${API_BASE_URL}/api/search?q=${encodeURIComponent(searchTerm)}`,
           {
             headers: { 'Authorization': `Bearer ${token}` }
           }
