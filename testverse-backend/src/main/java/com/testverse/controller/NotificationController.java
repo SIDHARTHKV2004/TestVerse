@@ -29,6 +29,17 @@ public class NotificationController {
     @Autowired
     private TeamRepository teamRepository;
 
+    private UserEntity resolveUser(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) return null;
+        Object principal = auth.getPrincipal();
+        if (principal instanceof UserEntity) return (UserEntity) principal;
+        String name = auth.getName();
+        if (name == null || name.isBlank()) return null;
+        return userRepository.findByEmail(name)
+                .or(() -> userRepository.findByUsername(name))
+                .orElse(null);
+    }
+
 
     // ============================================================
     // SEND TEAM INVITATION
@@ -41,10 +52,7 @@ public class NotificationController {
 
         try {
 
-            UserEntity admin =
-                    userRepository
-                            .findByUsername(auth.getName())
-                            .orElse(null);
+            UserEntity admin = resolveUser(auth);
 
             if (admin == null ||
                     admin.getRole() != UserRole.ADMIN) {
@@ -191,10 +199,7 @@ public class NotificationController {
 
         try {
 
-            UserEntity user =
-                    userRepository
-                            .findByUsername(auth.getName())
-                            .orElse(null);
+            UserEntity user = resolveUser(auth);
 
             if (user == null) {
 
@@ -242,10 +247,7 @@ public class NotificationController {
 
         try {
 
-            UserEntity user =
-                    userRepository
-                            .findByUsername(auth.getName())
-                            .orElse(null);
+            UserEntity user = resolveUser(auth);
 
             if (user == null) {
 
@@ -362,10 +364,7 @@ public class NotificationController {
 
         try {
 
-            UserEntity user =
-                    userRepository
-                            .findByUsername(auth.getName())
-                            .orElse(null);
+            UserEntity user = resolveUser(auth);
 
             if (user == null) {
 
@@ -448,10 +447,7 @@ public class NotificationController {
 
         try {
 
-            UserEntity user =
-                    userRepository
-                            .findByUsername(auth.getName())
-                            .orElse(null);
+            UserEntity user = resolveUser(auth);
 
             if (user == null) {
 
@@ -531,9 +527,7 @@ public class NotificationController {
     @PatchMapping("/tasks/read")
     public ResponseEntity<?> markTaskNotificationsAsRead(Authentication auth) {
         try {
-            UserEntity user = userRepository
-                    .findByUsername(auth.getName())
-                    .orElse(null);
+            UserEntity user = resolveUser(auth);
 
             if (user == null) {
                 return ResponseEntity
@@ -582,9 +576,7 @@ public class NotificationController {
     @PatchMapping("/read-all")
     public ResponseEntity<?> markAllNotificationsAsRead(Authentication auth) {
         try {
-            UserEntity user = userRepository
-                    .findByUsername(auth.getName())
-                    .orElse(null);
+            UserEntity user = resolveUser(auth);
 
             if (user == null) {
                 return ResponseEntity
@@ -627,10 +619,7 @@ public class NotificationController {
 
         try {
 
-            UserEntity user =
-                    userRepository
-                            .findByUsername(auth.getName())
-                            .orElse(null);
+            UserEntity user = resolveUser(auth);
 
             if (user == null) {
 

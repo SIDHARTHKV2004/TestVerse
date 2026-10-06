@@ -71,7 +71,7 @@ public class DevelopingHubController {
     private boolean isTesterRestricted(UserEntity user) {
         if (user == null) return false;
         if (user.getRole() == UserRole.TESTER) return true;
-        if (user.getRole() == UserRole.MENTOR && "TESTING".equalsIgnoreCase(user.getDepartment())) return true;
+        if (user.getRole() == UserRole.MENTOR && user.canMentorTester() && !user.canMentorDeveloper()) return true;
         return false;
     }
 

@@ -24,6 +24,17 @@ public class CommunityController {
     @Autowired
     private UserRepository userRepository;
 
+    private UserEntity resolveUser(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) return null;
+        Object principal = auth.getPrincipal();
+        if (principal instanceof UserEntity) return (UserEntity) principal;
+        String name = auth.getName();
+        if (name == null || name.isBlank()) return null;
+        return userRepository.findByEmail(name)
+                .or(() -> userRepository.findByUsername(name))
+                .orElse(null);
+    }
+
     @GetMapping
     public ResponseEntity<List<CommunityPostEntity>> getAllPosts() {
         return ResponseEntity.ok(postRepository.findAll());
@@ -32,7 +43,7 @@ public class CommunityController {
     @PostMapping
     public ResponseEntity<?> createPost(@RequestBody Map<String, Object> request, Authentication auth) {
         try {
-            UserEntity user = userRepository.findByUsername(auth.getName()).orElse(null);
+            UserEntity user = resolveUser(auth);
             if (user == null) return ResponseEntity.status(401).build();
 
             CommunityPostEntity post = new CommunityPostEntity();

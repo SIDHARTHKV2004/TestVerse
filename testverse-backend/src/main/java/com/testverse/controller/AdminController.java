@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -22,6 +23,7 @@ import java.util.Map;
 public class AdminController {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     // ============================================================
     // GET ALL USERS
@@ -603,20 +605,19 @@ public class AdminController {
             return ResponseEntity.badRequest().body("Selected mentor is not active");
         }
 
-        String expectedDepartment = (targetUser.getRole() == UserRole.TESTER) ? "TESTING" : "DEVELOPMENT";
-        String mentorDepartment = mentor.getDepartment() != null
-                ? mentor.getDepartment().trim().toUpperCase()
-                : "";
+        boolean isEligible = (targetUser.getRole() == UserRole.TESTER)
+                ? mentor.canMentorTester()
+                : mentor.canMentorDeveloper();
 
-        if (!expectedDepartment.equals(mentorDepartment)) {
+        if (!isEligible) {
             return ResponseEntity.badRequest().body(
-                    "Role-mentor mismatch: " + targetUser.getRole() + " must be assigned a " + expectedDepartment + " mentor"
+                    "Selected mentor (" + mentor.getName() + " - " + mentor.getDepartment() + ") is not eligible to mentor " + targetUser.getRole() + "s"
             );
         }
 
         targetUser.setMentor(mentor);
         if (targetUser.getDepartment() == null || targetUser.getDepartment().trim().isEmpty()) {
-            targetUser.setDepartment(expectedDepartment);
+            targetUser.setDepartment(targetUser.getRole() == UserRole.TESTER ? "TESTING" : "DEVELOPMENT");
         }
         targetUser.setUpdatedAt(LocalDateTime.now());
         userRepository.save(targetUser);
@@ -627,7 +628,97 @@ public class AdminController {
         response.put("mentorId", mentor.getId());
         response.put("mentorName", mentor.getName());
         response.put("mentorDepartment", mentor.getDepartment());
+        response.put("mentorDomain", mentor.getDepartment());
 
         return ResponseEntity.ok(response);
+    }
+
+    // ============================================================
+    // CREATE MENTOR/FACULTY (ADMIN-ONLY)
+    // Creates an active mentor account directly — no approval needed.
+    // ============================================================
+    @PostMapping("/users/create-mentor")
+    public ResponseEntity<?> createMentor(@RequestBody Map<String, Object> request) {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !(auth.getPrincipal() instanceof UserEntity)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Authentication is required");
+        }
+
+        UserEntity currentUser = (UserEntity) auth.getPrincipal();
+
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Only Admin can create mentor/faculty accounts");
+        }
+
+        String email    = request.get("email")    != null ? request.get("email").toString().trim()    : null;
+        String name     = request.get("name")     != null ? request.get("name").toString().trim()     : null;
+        String password = request.get("password") != null ? request.get("password").toString()       : null;
+        String domain   = request.get("domain")   != null ? request.get("domain").toString().trim()   : null;
+
+        if (email == null || email.isEmpty())    return ResponseEntity.badRequest().body("Email is required");
+        if (name == null || name.isEmpty())      return ResponseEntity.badRequest().body("Name is required");
+        if (password == null || password.length() < 6) return ResponseEntity.badRequest().body("Password must be at least 6 characters");
+        if (domain == null || domain.isEmpty())   return ResponseEntity.badRequest().body("Domain / Specialization is required");
+
+        boolean canMentorDev = false;
+        if (request.get("canMentorDeveloper") != null) {
+            canMentorDev = Boolean.parseBoolean(request.get("canMentorDeveloper").toString().trim());
+        }
+
+        boolean canMentorTest = false;
+        if (request.get("canMentorTester") != null) {
+            canMentorTest = Boolean.parseBoolean(request.get("canMentorTester").toString().trim());
+        }
+
+        // Backward compatibility fallback: if neither flag is set, infer from domain if it's DEVELOPMENT or TESTING
+        if (!canMentorDev && !canMentorTest) {
+            if ("DEVELOPMENT".equalsIgnoreCase(domain)) {
+                canMentorDev = true;
+            } else if ("TESTING".equalsIgnoreCase(domain)) {
+                canMentorTest = true;
+            } else {
+                return ResponseEntity.badRequest().body("Please select at least one role the mentor can supervise (Developer or Tester)");
+            }
+        }
+
+        if (userRepository.existsByEmail(email)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email is already registered");
+        }
+
+        String hashedPassword = passwordEncoder.encode(password);
+
+        UserEntity mentor = UserEntity.builder()
+                .email(email)
+                .name(name)
+                .username(email)
+                .passwordHash(hashedPassword)
+                .role(UserRole.MENTOR)
+                .status(UserStatus.ACTIVE)
+                .department(domain)
+                .canMentorDeveloper(canMentorDev)
+                .canMentorTester(canMentorTest)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        userRepository.save(mentor);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Mentor account created successfully");
+        response.put("userId", mentor.getId());
+        response.put("email", mentor.getEmail());
+        response.put("name", mentor.getName());
+        response.put("username", mentor.getUsername());
+        response.put("role", "MENTOR");
+        response.put("domain", mentor.getDepartment());
+        response.put("department", mentor.getDepartment());
+        response.put("canMentorDeveloper", mentor.canMentorDeveloper());
+        response.put("canMentorTester", mentor.canMentorTester());
+        response.put("status", "ACTIVE");
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

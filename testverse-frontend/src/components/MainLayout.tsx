@@ -43,21 +43,33 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNaviga
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     const isDeveloper = user?.role === 'DEVELOPER';
-    const isDevelopmentMentor =
-        user?.role === 'MENTOR' &&
-        (user?.department === 'DEVELOPMENT' ||
-         user?.department?.toUpperCase() === 'DEVELOPMENT' ||
-         user?.email?.toLowerCase().includes('devmentor') ||
-         user?.name?.toLowerCase().includes('development'));
+    const isTester = user?.role === 'TESTER';
+    const isMentor = user?.role === 'MENTOR';
 
-    const isDeveloperSide = isDeveloper || isDevelopmentMentor;
-    const isTestingSide = user?.role === 'TESTER' || (user?.role === 'MENTOR' && !isDevelopmentMentor);
+    const canMentorDev = isMentor && (
+        user?.canMentorDeveloper === true ||
+        user?.department === 'DEVELOPMENT' ||
+        user?.department?.toUpperCase() === 'DEVELOPMENT' ||
+        user?.email?.toLowerCase().includes('devmentor') ||
+        user?.name?.toLowerCase().includes('development')
+    );
+
+    const canMentorTest = isMentor && (
+        user?.canMentorTester === true ||
+        user?.department === 'TESTING' ||
+        user?.department?.toUpperCase() === 'TESTING' ||
+        (!canMentorDev && isMentor)
+    );
+
+    const isDeveloperSide = isDeveloper || canMentorDev;
+    const isTestingSide = isTester || canMentorTest;
     const isAdministrator = isAdmin || user?.role === 'ADMIN';
 
     // Role-based Hub Visibility:
     // TESTER & TESTING MENTOR: AutomationHub
     // DEVELOPER & DEVELOPMENT MENTOR: Developer Hub
     // ADMIN: Both AutomationHub and Developer Hub (view/monitoring)
+    // Mentors with both capabilities can access both hubs
     const showAutomationHub = isAdministrator || isTestingSide;
     const showDeveloperHub = isAdministrator || isDeveloperSide;
 
@@ -77,7 +89,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, currentPage, onNaviga
         { id: 'chat', label: 'Chat', icon: MessageSquare, path: '/chat' },
         { id: 'notes', label: 'Notes & Resources', icon: BookOpen, path: '/notes' },
         { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, path: '/leaderboard' },
-        { id: 'team', label: 'My Team', icon: UsersIcon, roles: ['TESTER', 'DEVELOPER'], path: '/team' },
+        { id: 'team', label: 'My Team', icon: UsersIcon, roles: ['TESTER', 'DEVELOPER', 'MENTOR', 'ADMIN'], path: '/team' },
         { id: 'users', label: 'Users', icon: UserCog, roles: ['ADMIN'], path: '/users' },
         { id: 'attendance', label: 'Attendance', icon: CalendarCheck, roles: ['ADMIN', 'MENTOR'], path: '/attendance' },
     ];

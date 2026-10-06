@@ -7,52 +7,72 @@ import {
     Check,
     CheckCheck,
     Users,
-    User,
     Globe,
     Search,
-    ChevronLeft
+    ChevronLeft,
+    Layers,
+    ExternalLink
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 interface Message {
   id: number;
   content: string;
   sender: {
-    id: string;
+    id: string | number;
     name: string;
     username?: string;
     role: string;
   };
   receiver?: {
-    id: string;
+    id: string | number;
     name: string;
     username?: string;
     role: string;
   } | null;
-  messageType: 'GENERAL' | 'DIRECT';
+  messageType: 'GENERAL' | 'DIRECT' | 'TEAM';
+  teamId?: number;
   createdAt: string;
   isSeen?: boolean;
 }
 
 interface ChatUser {
-  id: string;
+  id: string | number;
   name: string;
   username?: string;
   email?: string;
   role: string;
+  department?: string;
 }
 
-type ChatMode = 'GENERAL' | 'DIRECT' | null;
+interface TeamItem {
+  id: number;
+  name: string;
+  description?: string;
+  teamType?: 'DEVELOPERS_ONLY' | 'TESTERS_ONLY' | 'MIXED';
+  memberCount?: number;
+  isCreator?: boolean;
+  isAdmin?: boolean;
+  createdBy?: {
+    id: number;
+    name: string;
+    role: string;
+    department?: string;
+  };
+}
+
+type ChatMode = 'GENERAL' | 'DIRECT' | 'TEAM' | null;
+type SidebarTab = 'DIRECT' | 'TEAMS';
 
 const API_BASE_URL =
     import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const ChatPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const {
     unreadSenderIds,
     unreadCountsBySender,
-    lastUnreadTimeBySender,
     lastMessageTimes,
     latestMessagePreviews,
     latestGeneralMessagePreview,
@@ -72,13 +92,17 @@ const ChatPage: React.FC = () => {
   // ============================================================
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
+  const [teams, setTeams] = useState<TeamItem[]>([]);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('DIRECT');
   const [newMessage, setNewMessage] = useState('');
   const [chatMode, setChatMode] = useState<ChatMode>(null);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<TeamItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [teamSearchQuery, setTeamSearchQuery] = useState('');
   const [showMobileChat, setShowMobileChat] = useState(false);
 
   // Local overrides for real-time responsiveness when messages arrive or are sent
@@ -167,6 +191,47 @@ const ChatPage: React.FC = () => {
   };
 
   // ============================================================
+  // LOAD TEAMS
+  // ============================================================
+  const fetchTeams = async (): Promise<TeamItem[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/teams/my-teams`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : [];
+        setTeams(list);
+        return list;
+      }
+
+      // If admin, fallback to /api/teams
+      if (user?.role === 'ADMIN') {
+        const adminResp = await fetch(`${API_BASE_URL}/api/teams`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (adminResp.ok) {
+          const adminData = await adminResp.json();
+          const list = Array.isArray(adminData) ? adminData : [];
+          setTeams(list);
+          return list;
+        }
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+      return [];
+    }
+  };
+
+  // ============================================================
   // FETCH GENERAL MESSAGES
   // ============================================================
   const fetchGeneralMessages = async (): Promise<void> => {
@@ -240,6 +305,31 @@ const ChatPage: React.FC = () => {
   };
 
   // ============================================================
+  // FETCH TEAM MESSAGES
+  // ============================================================
+  const fetchTeamMessages = async (teamId: number): Promise<void> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/teams/${teamId}/messages`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch team messages');
+      }
+
+      const data = await response.json();
+      setMessages(Array.isArray(data) ? data : []);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching team messages:', error);
+      setError('Unable to load team conversation.');
+    }
+  };
+
+  // ============================================================
   // FETCH CURRENT CHAT
   // ============================================================
   const fetchCurrentChat = async (): Promise<void> => {
@@ -250,7 +340,13 @@ const ChatPage: React.FC = () => {
     }
 
     if (chatMode === 'DIRECT' && selectedUser) {
-      await fetchDirectMessages(selectedUser.id);
+      await fetchDirectMessages(String(selectedUser.id));
+      return;
+    }
+
+    if (chatMode === 'TEAM' && selectedTeam) {
+      await fetchTeamMessages(selectedTeam.id);
+      return;
     }
   };
 
@@ -260,8 +356,25 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     const loadChat = async (): Promise<void> => {
       setLoading(true);
-      const loadedUsers = await fetchUsers();
+      const [loadedUsers, loadedTeams] = await Promise.all([fetchUsers(), fetchTeams()]);
 
+      // Check if team chat was requested via URL
+      const targetTeamId = searchParams.get('teamId');
+      if (targetTeamId) {
+        const targetTeam = loadedTeams.find((t) => String(t.id) === String(targetTeamId));
+        if (targetTeam) {
+          setSidebarTab('TEAMS');
+          setChatMode('TEAM');
+          setSelectedTeam(targetTeam);
+          setSelectedUser(null);
+          setShowMobileChat(true);
+          await fetchTeamMessages(targetTeam.id);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Check if direct chat was requested via URL
       const targetUserId = searchParams.get('userId');
       if (targetUserId) {
         const targetUser = loadedUsers.find(
@@ -269,11 +382,13 @@ const ChatPage: React.FC = () => {
         );
 
         if (targetUser) {
+          setSidebarTab('DIRECT');
           setChatMode('DIRECT');
           setSelectedUser(targetUser);
+          setSelectedTeam(null);
           setShowMobileChat(true);
           await markChatAttentionAsRead(targetUser.id);
-          await fetchDirectMessages(targetUser.id);
+          await fetchDirectMessages(String(targetUser.id));
           setLoading(false);
           return;
         }
@@ -283,6 +398,7 @@ const ChatPage: React.FC = () => {
       if (searchParams.get('chat') === 'general') {
         setChatMode('GENERAL');
         setSelectedUser(null);
+        setSelectedTeam(null);
         setShowMobileChat(true);
         await markGeneralChatAsRead();
         await fetchGeneralMessages();
@@ -293,6 +409,7 @@ const ChatPage: React.FC = () => {
       // Default state: Keep conversations intact without marking anything read
       setChatMode(null);
       setSelectedUser(null);
+      setSelectedTeam(null);
       setLoading(false);
     };
 
@@ -300,7 +417,7 @@ const ChatPage: React.FC = () => {
   }, []);
 
   // ============================================================
-  // SWITCH CONVERSATION ON URL PARAMS (Active Today click)
+  // SWITCH CONVERSATION ON URL PARAMS (Active Today click or links)
   // ============================================================
   useEffect(() => {
     const targetUserId = searchParams.get('userId');
@@ -310,14 +427,32 @@ const ChatPage: React.FC = () => {
       );
 
       if (targetUser && (!selectedUser || String(selectedUser.id) !== String(targetUser.id))) {
+        setSidebarTab('DIRECT');
         setChatMode('DIRECT');
         setSelectedUser(targetUser);
+        setSelectedTeam(null);
         setShowMobileChat(true);
         void markChatAttentionAsRead(targetUser.id);
-        void fetchDirectMessages(targetUser.id);
+        void fetchDirectMessages(String(targetUser.id));
       }
     }
-  }, [searchParams, users]);
+
+    const targetTeamId = searchParams.get('teamId');
+    if (targetTeamId && teams.length > 0) {
+      const targetTeam = teams.find(
+        (t) => String(t.id) === String(targetTeamId)
+      );
+
+      if (targetTeam && (!selectedTeam || String(selectedTeam.id) !== String(targetTeam.id))) {
+        setSidebarTab('TEAMS');
+        setChatMode('TEAM');
+        setSelectedTeam(targetTeam);
+        setSelectedUser(null);
+        setShowMobileChat(true);
+        void fetchTeamMessages(targetTeam.id);
+      }
+    }
+  }, [searchParams, users, teams]);
 
   // ============================================================
   // POLLING
@@ -331,7 +466,7 @@ const ChatPage: React.FC = () => {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [chatMode, selectedUser]);
+  }, [chatMode, selectedUser, selectedTeam]);
 
   // ============================================================
   // ONLINE HEARTBEAT
@@ -372,6 +507,7 @@ const ChatPage: React.FC = () => {
   const openGeneralChat = async (): Promise<void> => {
     setChatMode('GENERAL');
     setSelectedUser(null);
+    setSelectedTeam(null);
     setMessages([]);
     setError(null);
     setLoading(true);
@@ -386,15 +522,34 @@ const ChatPage: React.FC = () => {
   // OPEN DIRECT CHAT
   // ============================================================
   const openDirectChat = async (chatUser: ChatUser): Promise<void> => {
+    setSidebarTab('DIRECT');
     setChatMode('DIRECT');
     setSelectedUser(chatUser);
+    setSelectedTeam(null);
     setMessages([]);
     setError(null);
     setLoading(true);
     setShowMobileChat(true);
 
     await markChatAttentionAsRead(chatUser.id);
-    await fetchDirectMessages(chatUser.id);
+    await fetchDirectMessages(String(chatUser.id));
+    setLoading(false);
+  };
+
+  // ============================================================
+  // OPEN TEAM CHAT
+  // ============================================================
+  const openTeamChat = async (team: TeamItem): Promise<void> => {
+    setSidebarTab('TEAMS');
+    setChatMode('TEAM');
+    setSelectedTeam(team);
+    setSelectedUser(null);
+    setMessages([]);
+    setError(null);
+    setLoading(true);
+    setShowMobileChat(true);
+
+    await fetchTeamMessages(team.id);
     setLoading(false);
   };
 
@@ -413,51 +568,83 @@ const ChatPage: React.FC = () => {
       return;
     }
 
+    if (chatMode === 'TEAM' && !selectedTeam) {
+      alert('Please select a team first.');
+      return;
+    }
+
     try {
       setSending(true);
 
-      const requestBody: {
-        content: string;
-        messageType: ChatMode;
-        receiverId?: string;
-      } = {
-        content: newMessage.trim(),
-        messageType: chatMode,
-      };
+      if (chatMode === 'TEAM' && selectedTeam) {
+        // Send using team messages endpoint
+        const response = await fetch(`${API_BASE_URL}/api/teams/${selectedTeam.id}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: newMessage.trim() }),
+        });
 
-      if (chatMode === 'DIRECT' && selectedUser) {
-        requestBody.receiverId = selectedUser.id;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to send message';
-        try {
-          const errorData = await response.json();
-          if (typeof errorData === 'string') {
-            errorMessage = errorData;
-          } else if (errorData?.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // Ignore JSON parsing error
+        if (!response.ok) {
+          let errorMessage = 'Failed to send team message';
+          try {
+            const errorData = await response.json();
+            if (typeof errorData === 'string') errorMessage = errorData;
+            else if (errorData?.error) errorMessage = errorData.error;
+          } catch {}
+          alert('❌ ' + errorMessage);
+          return;
         }
 
-        alert('❌ ' + errorMessage);
-        return;
-      }
+        setNewMessage('');
+        await fetchTeamMessages(selectedTeam.id);
+      } else {
+        // General or Direct
+        const requestBody: {
+          content: string;
+          messageType: 'GENERAL' | 'DIRECT';
+          receiverId?: string;
+        } = {
+          content: newMessage.trim(),
+          messageType: chatMode as 'GENERAL' | 'DIRECT',
+        };
 
-      setNewMessage('');
-      await fetchCurrentChat();
-      void refreshAttention();
+        if (chatMode === 'DIRECT' && selectedUser) {
+          requestBody.receiverId = String(selectedUser.id);
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+          let errorMessage = 'Failed to send message';
+          try {
+            const errorData = await response.json();
+            if (typeof errorData === 'string') {
+              errorMessage = errorData;
+            } else if (errorData?.error) {
+              errorMessage = errorData.error;
+            }
+          } catch {
+            // Ignore JSON parsing error
+          }
+
+          alert('❌ ' + errorMessage);
+          return;
+        }
+
+        setNewMessage('');
+        await fetchCurrentChat();
+        void refreshAttention();
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       alert('❌ Network error. Please try again.');
@@ -531,6 +718,16 @@ const ChatPage: React.FC = () => {
     return role.toLowerCase().replace(/^./, (char) => char.toUpperCase());
   };
 
+  // ============================================================
+  // FORMAT TEAM TYPE
+  // ============================================================
+  const formatTeamType = (type?: string): string => {
+    if (!type) return 'Mixed';
+    if (type === 'DEVELOPERS_ONLY') return 'Developers';
+    if (type === 'TESTERS_ONLY') return 'Testers';
+    return 'Mixed';
+  };
+
   // Filtered users for people list
   const filteredUsers = users.filter((u) => {
     if (!searchQuery.trim()) return true;
@@ -538,7 +735,20 @@ const ChatPage: React.FC = () => {
     return (
       (u.name && u.name.toLowerCase().includes(q)) ||
       (u.username && u.username.toLowerCase().includes(q)) ||
-      (u.role && u.role.toLowerCase().includes(q))
+      (u.role && u.role.toLowerCase().includes(q)) ||
+      (u.department && u.department.toLowerCase().includes(q))
+    );
+  });
+
+  // Filtered teams list
+  const filteredTeams = teams.filter((t) => {
+    if (!teamSearchQuery.trim()) return true;
+    const q = teamSearchQuery.toLowerCase();
+    return (
+      (t.name && t.name.toLowerCase().includes(q)) ||
+      (t.description && t.description.toLowerCase().includes(q)) ||
+      (t.teamType && t.teamType.toLowerCase().includes(q)) ||
+      (t.createdBy?.department && t.createdBy.department.toLowerCase().includes(q))
     );
   });
 
@@ -563,7 +773,7 @@ const ChatPage: React.FC = () => {
   // ============================================================
   // LOADING STATE
   // ============================================================
-  if (loading && messages.length === 0 && users.length === 0) {
+  if (loading && messages.length === 0 && users.length === 0 && teams.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-slate-500 flex items-center gap-2">
@@ -589,9 +799,11 @@ const ChatPage: React.FC = () => {
           <span className="text-xs text-slate-500 hidden sm:inline">
             {chatMode === 'GENERAL'
               ? 'General conversation'
+              : chatMode === 'TEAM' && selectedTeam
+              ? `Team: ${selectedTeam.name}`
               : selectedUser
               ? `Conversation with ${selectedUser.name}`
-              : 'Direct messaging'}
+              : 'Messaging & Collaboration'}
           </span>
         </div>
       </div>
@@ -692,138 +904,236 @@ const ChatPage: React.FC = () => {
             })()}
           </div>
 
-          {/* Section Divider & People Search */}
-          <div className="px-3 pt-2 pb-1 border-t border-[#E2E8F0] flex-shrink-0">
-            <div className="flex items-center justify-between text-[11px] font-bold tracking-wider uppercase text-slate-500 mb-2">
-              <div className="flex items-center gap-1.5">
-                <Users size={12} className="text-slate-400" />
-                <span>People</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {sortedUsers.length}
-              </span>
+          {/* Mode Switcher Tabs: Direct vs Teams */}
+          <div className="px-2 pt-1 pb-2 border-t border-[#E2E8F0] flex-shrink-0">
+            <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl mb-2">
+              <button
+                type="button"
+                onClick={() => setSidebarTab('DIRECT')}
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  sidebarTab === 'DIRECT'
+                    ? 'bg-white text-[#0062E0] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Users size={13} />
+                <span>Direct</span>
+                <span className="text-[10px] text-slate-400 font-normal">
+                  ({sortedUsers.length})
+                </span>
+                {unreadSenderIds.length > 0 && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#0062E0] animate-pulse" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidebarTab('TEAMS')}
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  sidebarTab === 'TEAMS'
+                    ? 'bg-white text-[#0062E0] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Layers size={13} />
+                <span>Teams</span>
+                <span className="text-[10px] text-slate-400 font-normal">
+                  ({filteredTeams.length})
+                </span>
+              </button>
             </div>
 
-            {/* People search input */}
-            <div className="relative mb-1">
+            {/* Filter Input */}
+            <div className="relative">
               <Search
                 size={13}
                 className="absolute left-2.5 top-2.5 text-slate-400"
               />
               <input
                 type="text"
-                placeholder="Filter people..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={sidebarTab === 'DIRECT' ? "Filter people..." : "Filter teams..."}
+                value={sidebarTab === 'DIRECT' ? searchQuery : teamSearchQuery}
+                onChange={(e) =>
+                  sidebarTab === 'DIRECT'
+                    ? setSearchQuery(e.target.value)
+                    : setTeamSearchQuery(e.target.value)
+                }
                 className="w-full bg-white border border-[#CBD5E1] rounded-lg pl-7 pr-2.5 py-1.5 text-xs text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] transition-colors"
               />
             </div>
           </div>
 
-          {/* Scrollable People / Direct Messages List */}
+          {/* Scrollable Conversation List */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {sortedUsers.length === 0 ? (
-              <div className="text-xs text-slate-400 text-center py-6">
-                No matching users found.
-              </div>
-            ) : (
-              sortedUsers.map((chatUser) => {
-                const isSelected =
-                  chatMode === 'DIRECT' && selectedUser?.id === chatUser.id;
-                const userIdStr = String(chatUser.id);
-                const unreadCount = isSelected
-                  ? 0
-                  : unreadCountsBySender[userIdStr] || 0;
-                const hasUnread = unreadCount > 0;
-                const timeStr = formatConversationTime(
-                  localMessageTimes[userIdStr] || lastMessageTimes[userIdStr]
-                );
-                const previewText =
-                  localMessagePreviews[userIdStr] ||
-                  latestMessagePreviews[userIdStr];
+            {sidebarTab === 'DIRECT' ? (
+              sortedUsers.length === 0 ? (
+                <div className="text-xs text-slate-400 text-center py-6">
+                  No matching users found.
+                </div>
+              ) : (
+                sortedUsers.map((chatUser) => {
+                  const isSelected =
+                    chatMode === 'DIRECT' && String(selectedUser?.id) === String(chatUser.id);
+                  const userIdStr = String(chatUser.id);
+                  const unreadCount = isSelected
+                    ? 0
+                    : unreadCountsBySender[userIdStr] || 0;
+                  const hasUnread = unreadCount > 0;
+                  const timeStr = formatConversationTime(
+                    localMessageTimes[userIdStr] || lastMessageTimes[userIdStr]
+                  );
+                  const previewText =
+                    localMessagePreviews[userIdStr] ||
+                    latestMessagePreviews[userIdStr];
 
-                return (
-                  <button
-                    key={chatUser.id}
-                    onClick={() => void openDirectChat(chatUser)}
-                    className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left ${
-                      isSelected
-                        ? 'bg-[#EFF6FF] border border-[#BFDBFE] text-[#0062E0] shadow-sm'
-                        : hasUnread
-                        ? 'bg-blue-50/70 border border-blue-200 text-[#0F172A] shadow-sm'
-                        : 'bg-transparent hover:bg-white border border-transparent text-slate-700 hover:shadow-xs'
-                    }`}
-                  >
-                    {/* Avatar */}
-                    <div className="relative flex-shrink-0">
-                      <div
-                        className={`w-10 h-10 rounded-full border flex items-center justify-center text-sm font-semibold ${
-                          isSelected
-                            ? 'bg-[#0062E0] border-[#0062E0] text-white'
-                            : hasUnread
-                            ? 'bg-[#EFF6FF] border-[#BFDBFE] text-[#0062E0]'
-                            : 'bg-slate-100 border-[#E2E8F0] text-slate-600'
-                        }`}
-                      >
-                        {chatUser.name
-                          ? chatUser.name.charAt(0).toUpperCase()
-                          : 'U'}
-                      </div>
-                    </div>
-
-                    {/* Info Block: 2 Rows */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-                      {/* Row 1: Name (left) and Time (right) */}
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {hasUnread && (
-                            <span className="w-2 h-2 rounded-full bg-[#0062E0] animate-pulse flex-shrink-0" />
-                          )}
-                          <span
-                            className={`text-sm truncate font-medium ${
-                              isSelected
-                                ? 'text-[#0062E0] font-semibold'
-                                : hasUnread
-                                ? 'text-[#0F172A] font-semibold'
-                                : 'text-slate-800'
-                            }`}
-                          >
-                            {chatUser.name}
-                          </span>
-                        </div>
-                        {timeStr && (
-                          <span
-                            className={`text-[11px] flex-shrink-0 ${
-                              hasUnread ? 'text-[#0062E0] font-semibold' : 'text-slate-400'
-                            }`}
-                          >
-                            {timeStr}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Row 2: Latest Message Preview (left) and Unread Badge (right) */}
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={`text-xs truncate ${
-                            hasUnread
-                              ? 'text-slate-900 font-medium'
-                              : 'text-slate-500'
+                  return (
+                    <button
+                      key={chatUser.id}
+                      onClick={() => void openDirectChat(chatUser)}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left ${
+                        isSelected
+                          ? 'bg-[#EFF6FF] border border-[#BFDBFE] text-[#0062E0] shadow-sm'
+                          : hasUnread
+                          ? 'bg-blue-50/70 border border-blue-200 text-[#0F172A] shadow-sm'
+                          : 'bg-transparent hover:bg-white border border-transparent text-slate-700 hover:shadow-xs'
+                      }`}
+                    >
+                      {/* Avatar */}
+                      <div className="relative flex-shrink-0">
+                        <div
+                          className={`w-10 h-10 rounded-full border flex items-center justify-center text-sm font-semibold ${
+                            isSelected
+                              ? 'bg-[#0062E0] border-[#0062E0] text-white'
+                              : hasUnread
+                              ? 'bg-[#EFF6FF] border-[#BFDBFE] text-[#0062E0]'
+                              : 'bg-slate-100 border-[#E2E8F0] text-slate-600'
                           }`}
                         >
-                          {previewText || getRoleLabel(chatUser.role)}
-                        </span>
-
-                        {hasUnread && (
-                          <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#0062E0] text-white text-[10px] font-bold flex items-center justify-center shadow-sm flex-shrink-0">
-                            {unreadCount}
-                          </span>
-                        )}
+                          {chatUser.name
+                            ? chatUser.name.charAt(0).toUpperCase()
+                            : 'U'}
+                        </div>
                       </div>
-                    </div>
+
+                      {/* Info Block: 2 Rows */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                        {/* Row 1: Name (left) and Time (right) */}
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {hasUnread && (
+                              <span className="w-2 h-2 rounded-full bg-[#0062E0] animate-pulse flex-shrink-0" />
+                            )}
+                            <span
+                              className={`text-sm truncate font-medium ${
+                                isSelected
+                                  ? 'text-[#0062E0] font-semibold'
+                                  : hasUnread
+                                  ? 'text-[#0F172A] font-semibold'
+                                  : 'text-slate-800'
+                              }`}
+                            >
+                              {chatUser.name}
+                            </span>
+                          </div>
+                          {timeStr && (
+                            <span
+                              className={`text-[11px] flex-shrink-0 ${
+                                hasUnread ? 'text-[#0062E0] font-semibold' : 'text-slate-400'
+                              }`}
+                            >
+                              {timeStr}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Row 2: Latest Message Preview or Role+Domain (left) and Unread Badge (right) */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`text-xs truncate ${
+                              hasUnread
+                                ? 'text-slate-900 font-medium'
+                                : 'text-slate-500'
+                            }`}
+                          >
+                            {previewText ||
+                              (chatUser.department
+                                ? `${getRoleLabel(chatUser.role)} • ${chatUser.department}`
+                                : getRoleLabel(chatUser.role))}
+                          </span>
+
+                          {hasUnread && (
+                            <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#0062E0] text-white text-[10px] font-bold flex items-center justify-center shadow-sm flex-shrink-0">
+                              {unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )
+            ) : (
+              /* TEAMS TAB */
+              filteredTeams.length === 0 ? (
+                <div className="text-xs text-slate-400 text-center py-6 px-4">
+                  <p>No teams available.</p>
+                  <button
+                    onClick={() => navigate('/teams')}
+                    className="mt-2 text-xs text-[#0062E0] hover:underline inline-flex items-center gap-1 font-medium"
+                  >
+                    <span>Manage or join teams</span>
+                    <ExternalLink size={11} />
                   </button>
-                );
-              })
+                </div>
+              ) : (
+                filteredTeams.map((team) => {
+                  const isSelected = chatMode === 'TEAM' && selectedTeam?.id === team.id;
+                  return (
+                    <button
+                      key={team.id}
+                      onClick={() => void openTeamChat(team)}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left ${
+                        isSelected
+                          ? 'bg-[#EFF6FF] border border-[#BFDBFE] text-[#0062E0] shadow-sm'
+                          : 'bg-transparent hover:bg-white border border-transparent text-slate-700 hover:shadow-xs'
+                      }`}
+                    >
+                      <div className="relative flex-shrink-0">
+                        <div
+                          className={`w-10 h-10 rounded-xl border flex items-center justify-center text-sm font-semibold ${
+                            isSelected
+                              ? 'bg-[#0062E0] border-[#0062E0] text-white'
+                              : 'bg-slate-100 border-[#E2E8F0] text-slate-600'
+                          }`}
+                        >
+                          <Layers size={18} />
+                        </div>
+                      </div>
+
+                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <span
+                            className={`text-sm truncate font-medium ${
+                              isSelected ? 'text-[#0062E0] font-semibold' : 'text-slate-800'
+                            }`}
+                          >
+                            {team.name}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
+                            {formatTeamType(team.teamType)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                          <span className="truncate">
+                            {team.memberCount ? `${team.memberCount} members` : 'Team chat'}
+                            {team.createdBy?.department ? ` • ${team.createdBy.department}` : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )
             )}
           </div>
         </div>
@@ -838,7 +1148,7 @@ const ChatPage: React.FC = () => {
         >
           {/* Active Conversation Header */}
           <div className="px-4 py-3 border-b border-[#E2E8F0] bg-white flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               {/* Mobile Back Button */}
               <button
                 onClick={() => setShowMobileChat(false)}
@@ -863,7 +1173,7 @@ const ChatPage: React.FC = () => {
                     </p>
                   </div>
                 </>
-              ) : selectedUser ? (
+              ) : chatMode === 'DIRECT' && selectedUser ? (
                 <>
                   <div className="w-8 h-8 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center text-xs font-bold text-[#0062E0] flex-shrink-0">
                     {selectedUser.name
@@ -878,10 +1188,40 @@ const ChatPage: React.FC = () => {
                       ) && <AttentionDot size="sm" />}
                     </h2>
                     <p className="text-[11px] text-slate-500 truncate">
-                      {getRoleLabel(selectedUser.role)} • Active
+                      {getRoleLabel(selectedUser.role)}
+                      {selectedUser.department ? ` • ${selectedUser.department}` : ''}
+                      {' • Active'}
                     </p>
                   </div>
                 </>
+              ) : chatMode === 'TEAM' && selectedTeam ? (
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center text-[#0062E0] flex-shrink-0">
+                      <Layers size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2 truncate">
+                        {selectedTeam.name}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-[#0062E0] font-normal">
+                          {formatTeamType(selectedTeam.teamType)}
+                        </span>
+                      </h2>
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {selectedTeam.memberCount ? `${selectedTeam.memberCount} members` : 'Team conversation'}
+                        {selectedTeam.createdBy?.department ? ` • Mentor Domain: ${selectedTeam.createdBy.department}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/teams')}
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-[#0062E0] hover:bg-blue-50 border border-slate-200 rounded-lg transition-colors flex-shrink-0 ml-2"
+                    title="View full team details on Teams page"
+                  >
+                    <span>Team Details</span>
+                    <ExternalLink size={12} />
+                  </button>
+                </div>
               ) : (
                 <h2 className="text-sm font-medium text-slate-500">
                   Select a conversation
@@ -905,23 +1245,29 @@ const ChatPage: React.FC = () => {
                   <div className="text-3xl mb-2">
                     {chatMode === 'GENERAL'
                       ? '👋'
-                      : selectedUser
+                      : chatMode === 'DIRECT' && selectedUser
                       ? '💬'
+                      : chatMode === 'TEAM' && selectedTeam
+                      ? '👥'
                       : '💬'}
                   </div>
                   <p className="text-base font-semibold text-[#0F172A]">
                     {chatMode === 'GENERAL'
                       ? 'No messages in General yet'
-                      : selectedUser
+                      : chatMode === 'DIRECT' && selectedUser
                       ? 'No messages in this conversation'
+                      : chatMode === 'TEAM' && selectedTeam
+                      ? `No messages in ${selectedTeam.name} yet`
                       : 'Select a conversation'}
                   </p>
                   <p className="text-xs text-slate-500 mt-1 max-w-xs">
                     {chatMode === 'GENERAL'
                       ? 'Send a message to start chatting with everyone!'
-                      : selectedUser
+                      : chatMode === 'DIRECT' && selectedUser
                       ? 'Send a message to start this private conversation.'
-                      : 'Choose General or select a person from People on the left to start messaging.'}
+                      : chatMode === 'TEAM' && selectedTeam
+                      ? 'Send a message to collaborate with your team!'
+                      : 'Choose General, a direct chat, or a team to start messaging.'}
                   </p>
                 </div>
               </div>
@@ -976,11 +1322,11 @@ const ChatPage: React.FC = () => {
                               : 'bg-white border border-[#E2E8F0] text-[#0F172A] rounded-bl-sm'
                           }`}
                         >
-                          {/* Sender name in General */}
+                          {/* Sender name for other users */}
                           {!isOwn && (
                             <p className="text-xs font-semibold text-[#0062E0] mb-0.5 flex items-center gap-1.5">
                               <span>{msg.sender?.name || 'Unknown'}</span>
-                              {chatMode === 'GENERAL' && msg.sender?.role && (
+                              {(chatMode === 'GENERAL' || chatMode === 'TEAM') && msg.sender?.role && (
                                 <span className="text-[10px] text-slate-400 font-normal">
                                   ({getRoleLabel(msg.sender.role)})
                                 </span>
@@ -1028,7 +1374,7 @@ const ChatPage: React.FC = () => {
           {/* ====================================================
               MESSAGE INPUT (Pinned at bottom, always accessible)
           ==================================================== */}
-          {(chatMode === 'GENERAL' || selectedUser) && (
+          {(chatMode === 'GENERAL' || (chatMode === 'DIRECT' && selectedUser) || (chatMode === 'TEAM' && selectedTeam)) && (
             <div className="p-3 md:p-3.5 border-t border-[#E2E8F0] bg-white flex-shrink-0">
               <form onSubmit={sendMessage} className="flex gap-2 items-center">
                 <input
@@ -1038,8 +1384,10 @@ const ChatPage: React.FC = () => {
                   placeholder={
                     chatMode === 'GENERAL'
                       ? 'Message General...'
-                      : selectedUser
+                      : chatMode === 'DIRECT' && selectedUser
                       ? `Message ${selectedUser.name}...`
+                      : chatMode === 'TEAM' && selectedTeam
+                      ? `Message #${selectedTeam.name}...`
                       : 'Type a message...'
                   }
                   className="flex-1 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl px-4 py-2.5 text-sm text-[#0F172A] placeholder-slate-400 focus:outline-none focus:border-[#0062E0] focus:ring-2 focus:ring-[#0062E0]/20 transition-all"

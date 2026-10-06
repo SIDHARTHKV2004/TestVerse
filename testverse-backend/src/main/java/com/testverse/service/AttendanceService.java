@@ -13,6 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -21,6 +24,29 @@ public class AttendanceService {
 
     private final AttendanceRepository attendanceRepository;
     private final UserRepository userRepository;
+
+    // ─── IST Timezone Helpers ──────────────────────────────────────
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+    private static final DateTimeFormatter ISO_OFFSET_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX");
+
+    /** Current wall-clock time in IST stored as LocalDateTime (no zone info). */
+    private LocalDateTime nowIST() {
+        return ZonedDateTime.now(IST).toLocalDateTime();
+    }
+
+    /** Today's calendar date in IST. */
+    private LocalDate todayIST() {
+        return ZonedDateTime.now(IST).toLocalDate();
+    }
+
+    /**
+     * Format a LocalDateTime (stored as IST) back as an ISO-8601 string
+     * with the +05:30 offset, so the frontend new Date() parses it correctly.
+     */
+    private String toIstOffsetString(LocalDateTime ldt) {
+        if (ldt == null) return null;
+        return ldt.atZone(IST).format(ISO_OFFSET_FORMATTER);
+    }
 
     // ============================================================
     // RECORD ATTENDANCE FOR TODAY
@@ -33,8 +59,8 @@ public class AttendanceService {
             return null;
         }
 
-        LocalDate today = LocalDate.now();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = todayIST();
+        LocalDateTime now = nowIST();
 
         Optional<AttendanceEntity> existing =
                 attendanceRepository.findByUserIdAndAttendanceDate(user.getId(), today);
@@ -85,7 +111,7 @@ public class AttendanceService {
     // Returns users who have a PRESENT attendance record for today.
     // ============================================================
     public List<Map<String, Object>> getTodayActiveUsers() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = todayIST();
         List<AttendanceEntity> records = attendanceRepository.findByAttendanceDate(today);
 
         return records.stream()
@@ -100,8 +126,8 @@ public class AttendanceService {
                     map.put("role", u.getRole() != null ? u.getRole().name() : "USER");
                     map.put("department", u.getDepartment());
                     map.put("status", "PRESENT");
-                    map.put("firstActiveAt", a.getFirstActiveAt() != null ? a.getFirstActiveAt().toString() : null);
-                    map.put("lastActiveAt", a.getLastActiveAt() != null ? a.getLastActiveAt().toString() : null);
+                    map.put("firstActiveAt", toIstOffsetString(a.getFirstActiveAt()));
+                    map.put("lastActiveAt", toIstOffsetString(a.getLastActiveAt()));
                     return map;
                 })
                 .sorted((a, b) -> {
@@ -152,7 +178,13 @@ public class AttendanceService {
                         if (u.getMentor() != null && u.getMentor().getId().equals(mentorId)) {
                             return true;
                         }
-                        // Department colleagues (Testers/Developers under this mentor's department)
+                        // Department colleagues & eligible students under this mentor
+                        if (requestingUser.canMentorDeveloper() && u.getRole() == UserRole.DEVELOPER) {
+                            return true;
+                        }
+                        if (requestingUser.canMentorTester() && u.getRole() == UserRole.TESTER) {
+                            return true;
+                        }
                         if (!mentorDept.isEmpty() && u.getDepartment() != null
                                 && u.getDepartment().trim().equalsIgnoreCase(mentorDept)
                                 && u.getRole() != UserRole.ADMIN) {
@@ -189,8 +221,8 @@ public class AttendanceService {
             AttendanceEntity att = attendanceByUserId.get(u.getId());
             if (att != null && att.getStatus() == AttendanceStatus.PRESENT) {
                 map.put("status", "PRESENT");
-                map.put("firstActiveAt", att.getFirstActiveAt() != null ? att.getFirstActiveAt().toString() : null);
-                map.put("lastActiveAt", att.getLastActiveAt() != null ? att.getLastActiveAt().toString() : null);
+                map.put("firstActiveAt", toIstOffsetString(att.getFirstActiveAt()));
+                map.put("lastActiveAt", toIstOffsetString(att.getLastActiveAt()));
             } else {
                 map.put("status", "ABSENT");
                 map.put("firstActiveAt", null);

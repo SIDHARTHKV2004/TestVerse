@@ -222,8 +222,26 @@ export const authApi = {
     return !!localStorage.getItem('token');
   },
 
-  getMentorsByDepartment: async (department: string): Promise<{ id: string; name: string; department?: string; activeCount?: number }[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/mentors?department=${encodeURIComponent(department)}`);
+  getEligibleMentors: async (role: string): Promise<{ id: string; name: string; department?: string; domain?: string; email?: string; canMentorDeveloper?: boolean; canMentorTester?: boolean; activeCount?: number }[]> => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/mentors?role=${encodeURIComponent(role)}`);
+    if (!response.ok) {
+      let errorMessage = 'Failed to fetch mentors';
+      try {
+        const errorData = await response.text();
+        if (errorData) {
+          errorMessage = errorData;
+        }
+      } catch (_) {
+        // Ignore
+      }
+      throw new Error(errorMessage);
+    }
+    return response.json();
+  },
+
+  getMentorsByDepartment: async (department: string): Promise<{ id: string; name: string; department?: string; domain?: string; email?: string; canMentorDeveloper?: boolean; canMentorTester?: boolean; activeCount?: number }[]> => {
+    const roleParam = department === 'TESTING' ? 'TESTER' : department === 'DEVELOPMENT' ? 'DEVELOPER' : department;
+    const response = await fetch(`${API_BASE_URL}/api/auth/mentors?role=${encodeURIComponent(roleParam)}&department=${encodeURIComponent(department)}`);
     if (!response.ok) {
       let errorMessage = 'Failed to fetch mentors';
       try {

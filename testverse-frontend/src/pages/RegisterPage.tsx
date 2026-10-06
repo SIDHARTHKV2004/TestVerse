@@ -10,6 +10,8 @@ interface Mentor {
   id: string;
   name: string;
   department?: string;
+  domain?: string;
+  email?: string;
   activeCount?: number;
 }
 
@@ -59,10 +61,8 @@ const RegisterPage: React.FC = () => {
   const isSubmitBlocked = loading || success || mentorsLoading || !formData.role || isMentorUnavailable || !mentorId;
 
   const formatDepartment = (dept?: string) => {
-    if (!dept) return formData.role === 'TESTER' ? 'Testing' : formData.role === 'DEVELOPER' ? 'Development' : '';
-    if (dept.toUpperCase() === 'TESTING') return 'Testing';
-    if (dept.toUpperCase() === 'DEVELOPMENT') return 'Development';
-    return dept.charAt(0).toUpperCase() + dept.slice(1).toLowerCase();
+    if (!dept) return '';
+    return dept;
   };
 
   // ── Focus-aware input style ────────────────────────────────────────────────
@@ -85,20 +85,19 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    const targetDepartment = formData.role === 'TESTER' ? 'TESTING' : 'DEVELOPMENT';
     const currentRoleLabel = formData.role === 'TESTER' ? 'Tester' : 'Developer';
 
     const loadMentors = async () => {
       setMentorsLoading(true);
       setMentorLoadError(null);
       try {
-        const fetchedMentors = await authApi.getMentorsByDepartment(targetDepartment);
+        const fetchedMentors = await authApi.getEligibleMentors(formData.role);
         if (isMounted) {
           const list = fetchedMentors || [];
           setMentors(list);
           if (list.length === 0) {
             setMentorId('');
-            setMentorLoadError(`Registration cannot continue because no active ${currentRoleLabel} mentor is currently available.`);
+            setMentorLoadError('No active faculty available for this role.');
           } else if (list.length === 1) {
             setMentorId(String(list[0].id));
           } else {
@@ -110,7 +109,7 @@ const RegisterPage: React.FC = () => {
         if (isMounted) {
           setMentors([]);
           setMentorId('');
-          setMentorLoadError(`Failed to load ${currentRoleLabel} mentors. Registration cannot proceed until mentors can be loaded.`);
+          setMentorLoadError(`Failed to load ${currentRoleLabel} faculty. Please try again later.`);
         }
       } finally {
         if (isMounted) setMentorsLoading(false);
@@ -154,7 +153,7 @@ const RegisterPage: React.FC = () => {
       return;
     }
     if (!hasMentors || mentorLoadError) {
-      showError(mentorLoadError || `Registration cannot continue because no active ${roleLabel} mentor is currently available.`);
+      showError(mentorLoadError || 'No active faculty available for this role.');
       setLoading(false);
       return;
     }

@@ -50,6 +50,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       email: data.email,
       name: data.name,
       role: data.role,
+      department: data.department || data.domain,
+      domain: data.domain || data.department,
+      canMentorDeveloper: data.canMentorDeveloper,
+      canMentorTester: data.canMentorTester,
       userId: data.userId || data.id,
       id: data.userId || data.id,
     });

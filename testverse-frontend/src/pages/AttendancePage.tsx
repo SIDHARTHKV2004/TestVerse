@@ -102,14 +102,17 @@ export const AttendancePage: React.FC = () => {
     return selectedDate;
   }, [selectedDate]);
 
-  // Format 24h ISO time to 12h AM/PM
+  // Format timestamp as IST 12h AM/PM time (explicit Asia/Kolkata timezone)
   const formatTime = (timeStr?: string | null) => {
     if (!timeStr) return '--:--';
     try {
       const d = new Date(timeStr);
-      return d.toLocaleTimeString([], {
+      if (isNaN(d.getTime())) return '--:--';
+      return d.toLocaleTimeString('en-IN', {
         hour: '2-digit',
         minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata',
       });
     } catch {
       return '--:--';

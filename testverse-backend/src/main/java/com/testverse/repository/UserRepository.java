@@ -20,6 +20,10 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     List<UserEntity> findByRole(UserRole role);
 
+    List<UserEntity> findByRoleAndStatus(UserRole role, UserStatus status);
+
+    long countByMentorAndStatus(UserEntity mentor, UserStatus status);
+
     boolean existsByEmail(String email);
 
     // Find mentors belonging to a specific department and having ACTIVE status
@@ -35,4 +39,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
             UserRole role,
             UserStatus status
     );
-}
+
+    // Find all users assigned to a specific mentor
+    List<UserEntity> findByMentorId(Long mentorId);
+}

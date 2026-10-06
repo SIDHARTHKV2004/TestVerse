@@ -60,7 +60,7 @@ public class AutomationHubController {
     private boolean isDeveloperRestricted(UserEntity user) {
         if (user == null) return false;
         if (user.getRole() == UserRole.DEVELOPER) return true;
-        if (user.getRole() == UserRole.MENTOR && "DEVELOPMENT".equalsIgnoreCase(user.getDepartment())) return true;
+        if (user.getRole() == UserRole.MENTOR && user.canMentorDeveloper() && !user.canMentorTester()) return true;
         return false;
     }
 

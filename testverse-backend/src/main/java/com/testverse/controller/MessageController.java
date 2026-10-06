@@ -39,6 +39,20 @@ public class MessageController {
     @Autowired
     private NotificationRepository notificationRepository;
 
+    @Autowired
+    private com.testverse.repository.TeamMembershipRepository membershipRepository;
+
+    private UserEntity resolveCurrentUser(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) return null;
+        Object principal = auth.getPrincipal();
+        if (principal instanceof UserEntity) return (UserEntity) principal;
+        String name = auth.getName();
+        if (name == null || name.isBlank()) return null;
+        return userRepository.findByEmail(name)
+                .or(() -> userRepository.findByUsername(name))
+                .orElse(null);
+    }
+
 
     // ============================================================
     // GET GENERAL MESSAGES
@@ -55,10 +69,16 @@ public class MessageController {
                             .getAuthentication();
 
             if (auth == null || !auth.isAuthenticated()) {
-
                 return ResponseEntity
                         .status(HttpStatus.UNAUTHORIZED)
                         .body("Authentication is required");
+            }
+
+            UserEntity user = resolveCurrentUser(auth);
+            if (user == null) {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Not authenticated"));
             }
 
             List<MessageEntity> messages =
@@ -103,16 +123,10 @@ public class MessageController {
                             .getContext()
                             .getAuthentication();
 
-            String username = auth.getName();
-
-            UserEntity currentUser =
-                    userRepository
-                            .findByUsername(username)
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "User not found"
-                                    )
-                            );
+            UserEntity currentUser = resolveCurrentUser(auth);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
 
             UserEntity otherUser =
                     userRepository
@@ -169,16 +183,10 @@ public class MessageController {
                             .getContext()
                             .getAuthentication();
 
-            String username = auth.getName();
-
-            UserEntity currentUser =
-                    userRepository
-                            .findByUsername(username)
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "User not found"
-                                    )
-                            );
+            UserEntity currentUser = resolveCurrentUser(auth);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
 
             List<UserEntity> users =
                     userRepository
@@ -232,6 +240,11 @@ public class MessageController {
                                         user.getRole()
                                 );
 
+                                item.put(
+                                        "department",
+                                        user.getDepartment() != null ? user.getDepartment() : ""
+                                );
+
                                 return item;
                             })
                             .toList();
@@ -272,16 +285,10 @@ public class MessageController {
                             .getContext()
                             .getAuthentication();
 
-            String username = auth.getName();
-
-            UserEntity sender =
-                    userRepository
-                            .findByUsername(username)
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "User not found"
-                                    )
-                            );
+            UserEntity sender = resolveCurrentUser(auth);
+            if (sender == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
 
 
             // ----------------------------------------------------
@@ -377,9 +384,6 @@ public class MessageController {
             message.setUpdatedAt(
                     LocalDateTime.now()
             );
-
-            // New chat system does not use teams
-            message.setTeam(null);
 
             message.setIsBroadcast(false);
 
@@ -499,6 +503,43 @@ public class MessageController {
                             MessageType.GENERAL
             ) {
 
+                message.setReceiver(null);
+                message.setTeam(null);
+            }
+
+            // ----------------------------------------------------
+            // TEAM MESSAGE
+            // ----------------------------------------------------
+            if (messageType == MessageType.TEAM) {
+                Object teamIdObject = request.get("teamId");
+                if (teamIdObject == null) {
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "teamId is required for team messages");
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+                }
+                Long teamId;
+                try {
+                    teamId = teamIdObject instanceof Number ? ((Number) teamIdObject).longValue() : Long.parseLong(teamIdObject.toString());
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Invalid teamId"));
+                }
+                com.testverse.model.TeamEntity team = teamRepository.findById(teamId).orElse(null);
+                if (team == null) {
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "Team not found");
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+                }
+                boolean isAdmin = sender.getRole() == UserRole.ADMIN;
+                boolean isCreator = (team.getCreatedByMentor() != null && team.getCreatedByMentor().getId().equals(sender.getId()))
+                        || (team.getAdmin() != null && team.getAdmin().getId().equals(sender.getId()));
+                boolean isMember = membershipRepository.existsByTeamIdAndUserId(teamId, sender.getId())
+                        || (sender.getTeam() != null && sender.getTeam().getId().equals(teamId));
+                if (!isAdmin && !isCreator && !isMember) {
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "You are not authorized to send messages to this team");
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+                }
+                message.setTeam(team);
                 message.setReceiver(null);
             }
 
@@ -681,16 +722,10 @@ public class MessageController {
                             .getContext()
                             .getAuthentication();
 
-            String username = auth.getName();
-
-            UserEntity currentUser =
-                    userRepository
-                            .findByUsername(username)
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "User not found"
-                                    )
-                            );
+            UserEntity currentUser = resolveCurrentUser(auth);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
 
             UserEntity otherUser =
                     userRepository
@@ -819,15 +854,10 @@ public class MessageController {
                         .body("Authentication is required");
             }
 
-            String username = auth.getName();
-            UserEntity currentUser =
-                    userRepository
-                            .findByUsername(username)
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "User not found"
-                                    )
-                            );
+            UserEntity currentUser = resolveCurrentUser(auth);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
 
             // 1. Direct messages involving current user
             List<MessageEntity> directMessages =
@@ -950,15 +980,10 @@ public class MessageController {
                         .body("Authentication is required");
             }
 
-            String username = auth.getName();
-            UserEntity currentUser =
-                    userRepository
-                            .findByUsername(username)
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "User not found"
-                                    )
-                            );
+            UserEntity currentUser = resolveCurrentUser(auth);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
 
             Long latestGeneralId = messageRepository.findLatestGeneralMessageId();
             if (latestGeneralId != null) {
@@ -1000,16 +1025,10 @@ public class MessageController {
                             .getContext()
                             .getAuthentication();
 
-            String username = auth.getName();
-
-            UserEntity user =
-                    userRepository
-                            .findByUsername(username)
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "User not found"
-                                    )
-                            );
+            UserEntity user = resolveCurrentUser(auth);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
 
             MessageEntity message =
                     messageRepository
@@ -1106,63 +1125,37 @@ public class MessageController {
                             .getContext()
                             .getAuthentication();
 
-            String username = auth.getName();
-
-            UserEntity user =
-                    userRepository
-                            .findByUsername(username)
-                            .orElseThrow(
-                                    () -> new RuntimeException(
-                                            "User not found"
-                                    )
-                            );
-
-
-            if (
-                    user.getRole() !=
-                            UserRole.ADMIN
-            ) {
-
-                Long userTeamId =
-                        user.getTeam() != null
-                                ? user
-                                .getTeam()
-                                .getId()
-                                : null;
-
-
-                if (
-                        userTeamId == null ||
-                                !userTeamId.equals(teamId)
-                ) {
-
-                    Map<String, String> error =
-                            new HashMap<>();
-
-                    error.put(
-                            "error",
-                            "You are not authorized to view messages from this team"
-                    );
-
-                    return ResponseEntity
-                            .status(
-                                    HttpStatus.FORBIDDEN
-                            )
-                            .body(error);
-                }
+            UserEntity user = resolveCurrentUser(auth);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
             }
 
 
-            List<MessageEntity> messages =
-                    messageRepository
-                            .findByTeamIdOrderByCreatedAtDesc(
-                                    teamId
-                            );
+            com.testverse.model.TeamEntity team = teamRepository.findById(teamId).orElse(null);
+            if (team == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Team not found"));
+            }
 
+            if (user.getRole() != UserRole.ADMIN) {
+                boolean isCreator = (team.getCreatedByMentor() != null && team.getCreatedByMentor().getId().equals(user.getId()))
+                        || (team.getAdmin() != null && team.getAdmin().getId().equals(user.getId()));
+                boolean isMember = membershipRepository.existsByTeamIdAndUserId(teamId, user.getId())
+                        || (user.getTeam() != null && user.getTeam().getId().equals(teamId));
 
-            return ResponseEntity.ok(
-                    messages
-            );
+                if (!isCreator && !isMember) {
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "You are not authorized to view messages from this team");
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+                }
+            }
+
+            List<MessageEntity> messages = messageRepository
+                    .findByMessageTypeAndTeamIdOrderByCreatedAtAsc(MessageType.TEAM, teamId);
+            if (messages.isEmpty()) {
+                messages = messageRepository.findByTeamIdOrderByCreatedAtDesc(teamId);
+            }
+
+            return ResponseEntity.ok(messages);
 
 
         } catch (Exception e) {
@@ -1194,12 +1187,10 @@ public class MessageController {
             Authentication auth =
                     SecurityContextHolder.getContext().getAuthentication();
 
-            String username = auth.getName();
-
-            UserEntity user =
-                    userRepository.findByUsername(username)
-                            .orElseThrow(() ->
-                                    new RuntimeException("User not found"));
+            UserEntity user = resolveCurrentUser(auth);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+            }
 
             user.setLastActiveAt(LocalDateTime.now());
 
