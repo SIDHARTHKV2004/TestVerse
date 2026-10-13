@@ -2,6 +2,7 @@ package com.testverse.repository;
 
 import com.testverse.model.InvitationEntity;
 import com.testverse.model.InvitationStatus;
+import com.testverse.model.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -18,4 +19,6 @@ public interface InvitationRepository extends JpaRepository<InvitationEntity, Lo
     Optional<InvitationEntity> findByEmailAndTeamId(String email, Long teamId);
 
     List<InvitationEntity> findByStatus(InvitationStatus status);
+
+    List<InvitationEntity> findByInvitedBy(UserEntity invitedBy);
 }

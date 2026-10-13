@@ -73,4 +73,8 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long> {
     List<MessageEntity> findBySenderIdOrderByCreatedAtDesc(
             Long senderId
     );
+
+    // Get messages by recipient
+    @Query("SELECT m FROM MessageEntity m WHERE m.receiver.id = :receiverId")
+    List<MessageEntity> findByReceiverId(@Param("receiverId") Long receiverId);
 }

@@ -195,11 +195,15 @@ const AdminUsersPage: React.FC = () => {
 
     // ✅ SECURE DELETE FUNCTION - Prevents admin deletion
     const handleDeleteUser = async (userId: number): Promise<void> => {
-        // Get the user being deleted
-        const userToDelete = users.find(u => u.id === userId);
+        if (actionLoading !== null) {
+            return;
+        }
+
+        // Get the user being deleted (checking both all users and pending lists)
+        const userToDelete = users.find(u => u.id === userId) || pendingUsers.find(u => u.id === userId);
 
         // ❌ Prevent deleting your own account
-        if (userId === user?.id) {
+        if (userId === user?.id || userId === user?.userId) {
             alert('❌ You cannot delete your own admin account!');
             return;
         }
@@ -210,16 +214,21 @@ const AdminUsersPage: React.FC = () => {
             return;
         }
 
-        // ✅ Only allow deletion of non-admin users with strong confirmation
-        if (!confirm(`⚠️ Are you sure you want to delete user "${userToDelete?.name}"?\n\nThis action will permanently remove this user and cannot be undone!`)) {
+        const userName = userToDelete?.name || `User #${userId}`;
+        const userRole = userToDelete?.role ? ` (${userToDelete.role})` : '';
+        const userEmail = userToDelete?.email ? ` [${userToDelete.email}]` : '';
+
+        // ✅ Only allow deletion of non-admin users with strong confirmation identifying the user
+        if (!confirm(`⚠️ Are you sure you want to delete user "${userName}"${userRole}${userEmail}?\n\nThis action will permanently remove this user and cannot be undone!`)) {
             return;
         }
 
-        // ✅ Double confirmation for extra safety
-        if (!confirm(`Are you absolutely sure? This will delete all data associated with "${userToDelete?.name}".`)) {
+        if (!token) {
+            setError('Authentication token missing. Please sign in again.');
             return;
         }
 
+        setError(null);
         setActionLoading(userId);
         try {
             const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
@@ -231,16 +240,34 @@ const AdminUsersPage: React.FC = () => {
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || 'Failed to delete user');
+                let errorMessage = 'Failed to delete user';
+                try {
+                    const errorText = await response.text();
+                    if (errorText) {
+                        try {
+                            const parsed = JSON.parse(errorText);
+                            errorMessage = parsed.error || parsed.message || errorText;
+                        } catch {
+                            errorMessage = errorText;
+                        }
+                    }
+                } catch {
+                    // ignore
+                }
+                throw new Error(errorMessage);
             }
 
-            alert('✅ User deleted successfully!');
+            // Remove user from local state immediately after confirmed backend success
+            setUsers(prev => prev.filter(u => u.id !== userId));
+            setPendingUsers(prev => prev.filter(u => u.id !== userId));
+
+            alert(`✅ User "${userName}" deleted successfully!`);
             await fetchUsers();
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to delete user';
             console.error('❌ Error deleting user:', errorMessage);
             setError(errorMessage);
+            alert(`❌ Error deleting user: ${errorMessage}`);
         } finally {
             setActionLoading(null);
         }
@@ -335,7 +362,7 @@ const AdminUsersPage: React.FC = () => {
     };
 
     const isCurrentUser = (userId: number): boolean => {
-        return userId === user?.id;
+        return userId === user?.id || userId === user?.userId;
     };
 
     if (loading) {
@@ -542,10 +569,15 @@ const AdminUsersPage: React.FC = () => {
                                         {!isOwnAccount && !isAdminUser && (
                                             <button
                                                 onClick={() => handleDeleteUser(userData.id)}
-                                                disabled={actionLoading === userData.id}
+                                                disabled={actionLoading !== null}
                                                 className="px-3 py-1.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 rounded-lg text-sm flex items-center gap-1 transition-colors disabled:opacity-50 font-medium"
+                                                title={`Delete ${userData.name}`}
                                             >
-                                                <Trash2 size={14} />
+                                                {actionLoading === userData.id ? (
+                                                    <RefreshCw size={14} className="animate-spin text-red-600" />
+                                                ) : (
+                                                    <Trash2 size={14} />
+                                                )}
                                                 Delete
                                             </button>
                                         )}

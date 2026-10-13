@@ -35,4 +35,6 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
             UserRole role,
             UserStatus status
     );
+
+    List<UserEntity> findByMentor(UserEntity mentor);
 }

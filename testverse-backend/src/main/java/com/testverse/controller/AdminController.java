@@ -4,24 +4,30 @@ import com.testverse.model.UserEntity;
 import com.testverse.model.UserRole;
 import com.testverse.model.UserStatus;
 import com.testverse.repository.UserRepository;
+import com.testverse.service.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+@Slf4j
 public class AdminController {
 
     private final UserRepository userRepository;
+    private final UserService userService;
 
     // ============================================================
     // GET ALL USERS
@@ -489,6 +495,35 @@ public class AdminController {
                 );
     }
 
+    // Helper: Resolve authenticated UserEntity from Spring Security context
+    private UserEntity getAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
+        }
+
+        Object principal = auth.getPrincipal();
+        if (principal instanceof UserEntity) {
+            return (UserEntity) principal;
+        }
+
+        String username = null;
+        if (principal instanceof UserDetails) {
+            username = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            username = (String) principal;
+        }
+
+        if (username != null && !username.isBlank()) {
+            final String lookupUsername = username;
+            return userRepository.findByEmail(lookupUsername)
+                    .or(() -> userRepository.findByUsername(lookupUsername))
+                    .orElse(null);
+        }
+
+        return null;
+    }
+
     // ============================================================
     // DELETE USER
     // ============================================================
@@ -497,22 +532,15 @@ public class AdminController {
     public ResponseEntity<?> deleteUser(
             @PathVariable Long userId) {
 
-        Authentication auth =
-                SecurityContextHolder.getContext().getAuthentication();
+        UserEntity currentUser = getAuthenticatedUser();
 
-        if (auth == null ||
-                !(auth.getPrincipal() instanceof UserEntity)) {
-
+        if (currentUser == null) {
             return ResponseEntity
                     .status(HttpStatus.FORBIDDEN)
                     .body("Authentication is required");
         }
 
-        UserEntity currentUser =
-                (UserEntity) auth.getPrincipal();
-
         if (currentUser.getRole() != UserRole.ADMIN) {
-
             return ResponseEntity
                     .status(HttpStatus.FORBIDDEN)
                     .body("Only Admin can delete users");
@@ -520,24 +548,39 @@ public class AdminController {
 
         // Prevent admin from deleting their own account
         if (currentUser.getId().equals(userId)) {
-
             return ResponseEntity
                     .badRequest()
                     .body("You cannot delete your own admin account");
         }
 
-        if (userRepository.existsById(userId)) {
+        Optional<UserEntity> targetUserOpt = userRepository.findById(userId);
+        if (targetUserOpt.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body("User not found");
+        }
 
-            userRepository.deleteById(userId);
+        UserEntity targetUser = targetUserOpt.get();
+
+        // Prevent deleting admin accounts
+        if (targetUser.getRole() == UserRole.ADMIN) {
+            return ResponseEntity
+                    .badRequest()
+                    .body("Admin accounts cannot be deleted for security reasons");
+        }
+
+        try {
+            userService.deleteUser(targetUser);
 
             return ResponseEntity.ok(
                     "User deleted successfully"
             );
+        } catch (Exception e) {
+            log.error("Failed to delete user with ID {}: {}", userId, e.getMessage(), e);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to delete user: " + e.getMessage());
         }
-
-        return ResponseEntity
-                .notFound()
-                .build();
     }
 
     // ============================================================
